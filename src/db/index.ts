@@ -113,8 +113,34 @@ const MIGRATIONS: string[] = [
   `,
 ];
 
+/** Dans un navigateur, une seule fenêtre peut tenir la base ouverte à la fois. */
+export function estErreurDejaOuverte(e: unknown) {
+  return /Access Handle|createSyncAccessHandle|NoModificationAllowed|déjà ouverte/i.test(String((e as Error)?.message ?? e));
+}
+
+const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function ouvrirBase() {
+  // Après un rechargement, l'ancienne page peut mettre un instant à lâcher la base : on réessaie quelques fois.
+  for (let essai = 0; ; essai++) {
+    try {
+      return await SQLite.openDatabaseAsync('foodvictor.db');
+    } catch (e) {
+      if (Platform.OS !== 'web' || !estErreurDejaOuverte(e) || essai >= 7) throw e;
+      await pause(300 * (essai + 1));
+    }
+  }
+}
+
+/** Libère la base (web : quand la page se ferme, pour que la suivante puisse l'ouvrir). */
+export async function fermerBase() {
+  const b = base;
+  base = null;
+  if (b) await b.closeAsync().catch(() => {});
+}
+
 export async function migrate() {
-  if (!base) base = await SQLite.openDatabaseAsync('foodvictor.db');
+  if (!base) base = await ouvrirBase();
   if (Platform.OS !== 'web') await db.execAsync('PRAGMA journal_mode = WAL;');
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
   let v = row?.user_version ?? 0;
