@@ -1,0 +1,54 @@
+{
+  "expo": {
+    "name": "Foodvictor",
+    "slug": "foodvictor",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#EFEBFF",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "fr.foodvictor.app",
+      "permissions": [
+        "android.permission.CAMERA"
+      ]
+    },
+    "web": {
+      "output": "single",
+      "bundler": "metro",
+      "favicon": "./public/favicon.png",
+      "name": "Foodvictor",
+      "shortName": "Foodvictor",
+      "lang": "fr",
+      "themeColor": "#FDFCFF",
+      "backgroundColor": "#FDFCFF"
+    },
+    "scheme": "foodvictor",
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Foodvictor utilise la caméra pour scanner les codes-barres des aliments.",
+          "recordAudioAndroid": false,
+          "microphonePermission": false
+        }
+      ],
+      "expo-font"
+    ],
+    "experiments": {
+      "typedRoutes": false,
+      "baseUrl": "/foodvictor"
+    }
+  }
+}

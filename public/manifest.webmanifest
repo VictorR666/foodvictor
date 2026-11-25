@@ -1,0 +1,17 @@
+{
+  "name": "Foodvictor",
+  "short_name": "Foodvictor",
+  "description": "Mes calories et macros, sans le superflu.",
+  "lang": "fr",
+  "start_url": "/foodvictor/",
+  "scope": "/foodvictor/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FDFCFF",
+  "theme_color": "#FDFCFF",
+  "icons": [
+    { "src": "/foodvictor/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/foodvictor/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/foodvictor/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

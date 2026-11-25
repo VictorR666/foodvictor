@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Foodvictor</title>
+    <meta name="theme-color" content="#FDFCFF" />
+    <meta name="description" content="Mes calories et macros, sans le superflu." />
+    <link rel="manifest" href="/foodvictor/manifest.webmanifest" />
+    <link rel="icon" type="image/png" href="/foodvictor/favicon.png" />
+    <link rel="apple-touch-icon" href="/foodvictor/icons/apple-touch-icon.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Foodvictor" />
+    <style id="expo-reset">
+      html, body { height: 100%; background: #FDFCFF; }
+      body { overflow: hidden; margin: 0; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
+      #root { display: flex; height: 100%; flex: 1; }
+    </style>
+    <script>
+      // Le service worker ajoute les en-têtes dont la base de données du navigateur a besoin.
+      // À la toute première visite il n'est pas encore actif : on recharge une fois quand il l'est.
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/foodvictor/sw.js', { scope: '/foodvictor/' }).then(function () {
+          if (!window.crossOriginIsolated) {
+            var relance = function () {
+              if (!sessionStorage.getItem('fv-reload')) {
+                sessionStorage.setItem('fv-reload', '1');
+                location.reload();
+              }
+            };
+            if (navigator.serviceWorker.controller) relance();
+            else navigator.serviceWorker.addEventListener('controllerchange', relance);
+          } else {
+            sessionStorage.removeItem('fv-reload');
+          }
+        });
+      }
+    </script>
+  </head>
+  <body>
+    <noscript>Active JavaScript pour utiliser Foodvictor.</noscript>
+    <div id="root"></div>
+  </body>
+</html>
