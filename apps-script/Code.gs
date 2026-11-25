@@ -1,4 +1,8 @@
 /**
+ * @OnlyCurrentDoc  Limite l'autorisation à CETTE feuille (pas à toutes tes Google Sheets).
+ */
+
+/**
  * Foodvictor — script de sauvegarde Google Sheets.
  *
  * Installation (5 minutes) :
@@ -10,6 +14,10 @@
  *       - Exécuter en tant que : moi
  *       - Qui a accès : Tout le monde (la clé secrète protège les données)
  *  6. Copie l'URL qui finit par /exec et colle-la, avec la clé, dans l'app (onglet Sauvegarde).
+ *
+ * Test : ouvre dans un navigateur  <URL /exec>?secret=<ta clé>
+ *   -> {"ok":true,"ping":true}  le script répond et la clé est bonne
+ *   -> {"ok":false,"error":"secret"}  la clé ne correspond pas
  */
 
 const SECRET = 'REMPLACE-MOI-par-une-longue-phrase-secrete';
