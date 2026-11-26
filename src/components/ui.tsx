@@ -341,6 +341,8 @@ export const IcProgres = ic('M5 19V11M12 19V5M19 19v-6');
 export const IcCible = ic('M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z');
 export const IcSync = ic('M20 11a8 8 0 0 0-14-4L4 9M4 4v5h5M4 13a8 8 0 0 0 14 4l2-2M20 20v-5h-5');
 export const IcPoubelle = ic('M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12');
+export const IcCalendrier = ic('M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM4 10h16M8 3v4M16 3v4M8 14h.01M12 14h.01M16 14h.01M8 17h.01M12 17h.01');
+export const IcDroite = ic('M9 5l7 7-7 7');
 export const IcCrayon = ic('M4 20h4L19 9l-4-4L4 16zM13 7l4 4');
 
 export const IcRepas: Record<string, React.FC<IcProps>> = {
