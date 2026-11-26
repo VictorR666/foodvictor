@@ -1,19 +1,15 @@
-import { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import Svg, { Circle } from 'react-native-svg';
-import { BarreDepassement, Ecran, IcBas, IcCalendrier, IcDroite, IcRetour, IcSync, Rond, fmt } from '../../components/ui';
-import { CerclesMacros } from '../../components/CerclesMacros';
+import {
+  BarreDepassement, Carte, Ecran, IcBas, IcCheck, IcRepas, IcSync, Jauge, Rond, Sub, T, Titre, fmt, s as ui,
+} from '../../components/ui';
 import { Entree, Totaux, ZERO, ciblesRepas, entreesDuJour, getObjectifs, somme } from '../../db/repo';
-import { LETTRE_JOUR, addDays, isoDate, libelleJour, parseIso, semaine, titreJour } from '../../lib/date';
+import { CerclesMacros } from '../../components/CerclesMacros';
+import { LETTRE_JOUR, isoDate, parseIso, semaine, titreJour, libelleJour, addDays } from '../../lib/date';
 import { setJour, useData, useJour } from '../../lib/hooks';
-import { EtatSync, surEtatSync } from '../../lib/sync';
-import { C, F, MACRO, MACRO_KEYS, REPAS, RepasKey, repasInfo } from '../../theme';
-
-// Accueil épuré façon Foodvisor : bandeau coloré (kcal + 4 barres), puis la journée et les 4 repas.
-const BANDEAU = '#F4F3F7'; // blanc grisâtre, très léger
-const PISTE = '#E6E3EE';
-const TRAIT = '#EEEBF6';
+import { surEtatSync, EtatSync } from '../../lib/sync';
+import { useEffect, useState } from 'react';
+import { C, F, MACRO, MACRO_KEYS, REPAS, RepasKey, repasInfo, shadow } from '../../theme';
 
 export default function Journal() {
   const jour = useJour();
@@ -22,248 +18,165 @@ export default function Journal() {
     return { entrees, obj };
   }, [jour]);
   const [sync, setSync] = useState<EtatSync>();
-  const [details, setDetails] = useState(false);
-  const [semaineOuverte, setSemaineOuverte] = useState(false);
   const [ouverts, setOuverts] = useState<Partial<Record<RepasKey, boolean>>>({});
   useEffect(() => surEtatSync(setSync), []);
 
   const entrees = data?.entrees ?? [];
   const obj = data?.obj;
   const total = somme(entrees);
-  const objectif = obj?.kcal ?? 0;
-  const restant = objectif - total.kcal;
+  const restant = (obj?.kcal ?? 0) - total.kcal;
+  const jours = semaine(jour);
   const today = isoDate();
-  const cibleMacro = (k: (typeof MACRO_KEYS)[number]) =>
-    obj ? { proteines: obj.proteines_g, glucides: obj.glucides_g, lipides: obj.lipides_g, fibres: obj.fibres_g }[k] : 0;
 
-  // On ne montre la sauvegarde que si elle demande une action.
-  const alerteSync =
-    sync?.etat === 'erreur' ? { label: 'Sauvegarde en erreur', bg: C.errBg, fg: C.errText }
-      : sync?.etat === 'non_configure' ? { label: 'Sauvegarde non configurée', bg: C.warnBg, fg: C.warnText }
-        : null;
+  const pastille =
+    sync?.etat === 'erreur'
+      ? { bg: C.errBg, fg: C.errText, label: 'Sauvegarde en erreur' }
+      : sync?.etat === 'non_configure'
+        ? { bg: C.warnBg, fg: C.warnText, label: 'Sauvegarde Google Sheets non configurée' }
+        : sync?.enAttente
+          ? { bg: C.lavSoft, fg: C.lavText, label: `${sync.enAttente} changement(s) en attente de sauvegarde` }
+          : { bg: C.okBg, fg: C.okText, label: 'Tout est sauvegardé' };
 
   return (
-    <Ecran bas={90} style={{ padding: 0, gap: 0 }}>
-      {/* Bandeau */}
-      <View style={{ backgroundColor: BANDEAU, paddingTop: 18, paddingBottom: 42, paddingHorizontal: 20 }}>
-        {alerteSync ? (
-          <Rond label={alerteSync.label} fond={alerteSync.bg} taille={38} onPress={() => router.navigate('/sauvegarde')} style={{ position: 'absolute', right: 14, top: 12, zIndex: 1 }}>
-            <IcSync couleur={alerteSync.fg} taille={17} />
-          </Rond>
-        ) : null}
-
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Chiffre valeur={total.kcal} legende="Consommées" />
-          <AnneauKcal ratio={objectif ? total.kcal / objectif : 0} depasse={restant < 0}>
-            <Text style={{ fontFamily: F.display, fontSize: 28, color: restant < 0 ? MACRO.proteines.text : C.ink, lineHeight: 32 }}>
-              {fmt(Math.abs(restant))}
-            </Text>
-            <Text style={{ fontFamily: F.bodySemi, fontSize: 12.5, color: C.ink2 }}>{restant < 0 ? 'kcal en trop' : 'kcal restantes'}</Text>
-          </AnneauKcal>
-          <Chiffre valeur={objectif} legende="Objectif" />
+    <Ecran bas={90}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 4 }}>
+        <View style={{ flex: 1 }}>
+          <Sub style={{ fontFamily: F.bodyBold }}>{libelleJour(jour)}</Sub>
+          <Titre>{titreJour(jour)}</Titre>
         </View>
+        <Rond label={pastille.label} fond={pastille.bg} onPress={() => router.navigate('/sauvegarde')}>
+          {sync?.etat === 'ok' && !sync.enAttente ? <IcCheck couleur={pastille.fg} /> : <IcSync couleur={pastille.fg} taille={19} />}
+        </Rond>
+      </View>
 
-        <View style={{ flexDirection: 'row', gap: 14, marginTop: 22 }}>
+      {/* Semaine */}
+      <View style={{ flexDirection: 'row', gap: 2, alignItems: 'center' }}>
+        <Pressable accessibilityLabel="Semaine précédente" onPress={() => setJour(addDays(jour, -7))} style={{ width: 24, alignItems: 'center', minHeight: 52, justifyContent: 'center' }}>
+          <Text style={{ fontFamily: F.bodyBold, color: C.ink2, fontSize: 18 }}>‹</Text>
+        </Pressable>
+        {jours.map((d) => {
+          const on = d === jour;
+          return (
+            <Pressable
+              key={d}
+              accessibilityRole="button"
+              accessibilityLabel={libelleJour(d)}
+              accessibilityState={{ selected: on }}
+              onPress={() => setJour(d)}
+              style={{
+                flex: 1, alignItems: 'center', gap: 2, paddingVertical: 6, borderRadius: 18, minHeight: 52,
+                backgroundColor: on ? C.lavText : 'transparent', borderWidth: d === today && !on ? 1.5 : 0, borderColor: C.lav,
+              }}
+            >
+              <Text style={{ fontFamily: F.bodyBold, fontSize: 11, color: on ? '#fff' : C.ink2 }}>{LETTRE_JOUR[parseIso(d).getDay()]}</Text>
+              <Text style={{ fontFamily: F.display, fontSize: 16, color: on ? '#fff' : C.ink }}>{parseIso(d).getDate()}</Text>
+            </Pressable>
+          );
+        })}
+        <Pressable accessibilityLabel="Semaine suivante" onPress={() => setJour(addDays(jour, 7))} style={{ width: 24, alignItems: 'center', minHeight: 52, justifyContent: 'center' }}>
+          <Text style={{ fontFamily: F.bodyBold, color: C.ink2, fontSize: 18 }}>›</Text>
+        </Pressable>
+      </View>
+
+      {/* Résumé du jour */}
+      <Carte style={{ gap: 14, paddingBottom: 18 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+          <View style={{ width: 74, alignItems: 'center', paddingBottom: 6 }}>
+            <Text style={{ fontFamily: F.display, fontSize: 20, color: C.ink }}>{fmt(total.kcal)}</Text>
+            <Sub style={{ fontFamily: F.bodyBold, fontSize: 12 }}>Mangé</Sub>
+          </View>
+          <View style={{ width: 180, height: 104, alignItems: 'center' }}>
+            <Jauge ratio={obj ? total.kcal / obj.kcal : 0} depasse={restant < 0} />
+            <View style={{ position: 'absolute', bottom: 4, alignItems: 'center' }}>
+              <Text style={{ fontFamily: F.display, fontSize: 32, color: restant < 0 ? MACRO.proteines.text : C.ink, lineHeight: 34 }}>
+                {fmt(Math.abs(restant))}
+              </Text>
+              <Sub style={{ fontFamily: F.bodyBold, fontSize: 12 }}>{restant < 0 ? 'kcal en trop' : 'kcal restantes'}</Sub>
+            </View>
+          </View>
+          <View style={{ width: 74, alignItems: 'center', paddingBottom: 6 }}>
+            <Text style={{ fontFamily: F.display, fontSize: 20, color: C.ink }}>{fmt(obj?.kcal ?? 0)}</Text>
+            <Sub style={{ fontFamily: F.bodyBold, fontSize: 12 }}>Objectif</Sub>
+          </View>
+        </View>
+        <View style={{ flexDirection: 'row', gap: 12 }}>
           {MACRO_KEYS.map((k) => {
-            const cible = cibleMacro(k);
-            const trop = !!cible && total[k] > cible;
+            const cible = obj ? { proteines: obj.proteines_g, glucides: obj.glucides_g, lipides: obj.lipides_g, fibres: obj.fibres_g }[k] : 0;
             return (
-              <View key={k} style={{ flex: 1, alignItems: 'center', gap: 8 }}>
-                <BarreDepassement ratio={cible ? total[k] / cible : 0} couleur={MACRO[k].fill} fonce={MACRO[k].fonce} fond={PISTE} />
-                <Text numberOfLines={1} style={{ fontFamily: F.bodySemi, fontSize: 13, color: C.ink2 }}>{MACRO[k].nom}</Text>
-                {details ? (
-                  <Text style={{ fontFamily: F.body, fontSize: 12.5, color: trop ? MACRO[k].text : C.ink, marginTop: -4 }}>
-                    {fmt(total[k])} / {fmt(cible)} g
-                  </Text>
-                ) : null}
+              <View key={k} style={{ flex: 1, gap: 4 }}>
+                <Text numberOfLines={1} style={{ fontFamily: F.bodyBold, fontSize: 12, color: MACRO[k].text }}>{MACRO[k].nom}</Text>
+                <BarreDepassement ratio={cible ? total[k] / cible : 0} couleur={MACRO[k].fill} fonce={MACRO[k].fonce} fond={MACRO[k].bg} hauteur={6} />
+                <Text style={{ fontFamily: F.body, fontSize: 12, color: C.ink2 }}>
+                  <Text style={{ color: C.ink, fontFamily: F.bodyBold }}>{fmt(total[k])}</Text> / {fmt(cible)} g
+                </Text>
               </View>
             );
           })}
         </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={details ? 'Masquer le détail des macros' : 'Voir le détail des macros'}
-          onPress={() => setDetails((d) => !d)}
-          style={{ alignSelf: 'center', marginTop: 6, width: 56, height: 32, alignItems: 'center', justifyContent: 'center' }}
-        >
-          <View style={{ transform: [{ rotate: details ? '180deg' : '0deg' }] }}>
-            <IcBas couleur={C.ink2} taille={22} epais={2.4} />
-          </View>
-        </Pressable>
-      </View>
+      </Carte>
 
-      {/* Feuille blanche */}
-      <View style={{ marginTop: -26, backgroundColor: C.bg, borderTopLeftRadius: 30, borderTopRightRadius: 30, paddingHorizontal: 16, paddingTop: 16, gap: 6 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <Rond label="Jour précédent" fond={BANDEAU} taille={48} onPress={() => setJour(addDays(jour, -1))}>
-            <IcRetour couleur={C.ink} taille={20} epais={2.6} />
-          </Rond>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`${libelleJour(jour)}, choisir un autre jour`}
-            onPress={() => setSemaineOuverte((o) => !o)}
-            style={{ flex: 1, minHeight: 48, borderRadius: 999, backgroundColor: BANDEAU, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 }}
-          >
-            <IcCalendrier couleur={C.ink} taille={22} epais={2} />
-            <Text style={{ fontFamily: F.display, fontSize: 19, color: C.ink }}>{titreJour(jour)}</Text>
-          </Pressable>
-          <Rond label="Jour suivant" fond={BANDEAU} taille={48} onPress={() => setJour(addDays(jour, 1))}>
-            <IcDroite couleur={C.ink} taille={20} epais={2.6} />
-          </Rond>
-        </View>
-
-        {semaineOuverte ? (
-          <View style={{ flexDirection: 'row', gap: 4, paddingTop: 6 }}>
-            {semaine(jour).map((d) => {
-              const on = d === jour;
-              return (
-                <Pressable
-                  key={d}
-                  accessibilityRole="button"
-                  accessibilityLabel={libelleJour(d)}
-                  accessibilityState={{ selected: on }}
-                  onPress={() => {
-                    setJour(d);
-                    setSemaineOuverte(false);
-                  }}
-                  style={{ flex: 1, alignItems: 'center', gap: 2, paddingVertical: 6, borderRadius: 16, minHeight: 50,
-                    backgroundColor: on ? C.ink : 'transparent', borderWidth: d === today && !on ? 1.5 : 0, borderColor: C.lav }}
-                >
-                  <Text style={{ fontFamily: F.body, fontSize: 11, color: on ? '#fff' : C.ink2 }}>{LETTRE_JOUR[parseIso(d).getDay()]}</Text>
-                  <Text style={{ fontFamily: F.display, fontSize: 16, color: on ? '#fff' : C.ink }}>{parseIso(d).getDate()}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        ) : null}
-        {semaineOuverte && jour !== today ? (
-          <Pressable accessibilityRole="button" onPress={() => { setJour(today); setSemaineOuverte(false); }} style={{ alignSelf: 'center', minHeight: 36, justifyContent: 'center', paddingHorizontal: 12 }}>
-            <Text style={{ fontFamily: F.body, fontSize: 13.5, color: C.lavText }}>Revenir à aujourd'hui</Text>
-          </Pressable>
-        ) : null}
-
-        <View style={{ height: 10 }} />
-        {REPAS.map((r, i) => {
-          const es = entrees.filter((e) => e.repas === r.key);
-          const precedentPlein = i > 0 && entrees.some((e) => e.repas === REPAS[i - 1].key);
-          return (
-            <Repas
-              key={r.key}
-              repasKey={r.key}
-              es={es}
-              cibles={obj ? ciblesRepas(obj, r.key) : ZERO}
-              trait={i > 0 && !es.length && !precedentPlein}
-              ouvert={!!ouverts[r.key]}
-              basculer={() => setOuverts((o) => ({ ...o, [r.key]: !o[r.key] }))}
-            />
-          );
-        })}
-      </View>
+      {/* Repas */}
+      {REPAS.map((r) => (
+        <CarteRepas
+          key={r.key}
+          repasKey={r.key}
+          es={entrees.filter((e) => e.repas === r.key)}
+          cibles={obj ? ciblesRepas(obj, r.key) : ZERO}
+          ouvert={!!ouverts[r.key]}
+          basculer={() => setOuverts((o) => ({ ...o, [r.key]: !o[r.key] }))}
+        />
+      ))}
     </Ecran>
   );
 }
 
-function Chiffre({ valeur, legende }: { valeur: number; legende: string }) {
-  return (
-    <View style={{ width: 92, alignItems: 'center', gap: 2 }}>
-      <Text style={{ fontFamily: F.display, fontSize: 22, color: C.ink }}>{fmt(valeur)}</Text>
-      <Text style={{ fontFamily: F.bodySemi, fontSize: 13, color: C.ink2 }}>{legende}</Text>
-    </View>
-  );
-}
-
-/** Cercle des kcal du jour : piste blanche, progression qui part du haut. */
-function AnneauKcal({ ratio, depasse, children }: { ratio: number; depasse: boolean; children: React.ReactNode }) {
-  const taille = 132, ep = 9, r = (taille - ep) / 2, L = 2 * Math.PI * r;
-  const part = Math.max(0, Math.min(1, ratio));
-  const trop = Math.max(0, Math.min(1, ratio - 1));
-  return (
-    <View style={{ width: taille, height: taille, alignItems: 'center', justifyContent: 'center' }}>
-      <Svg width={taille} height={taille} style={{ position: 'absolute', transform: [{ rotate: '-90deg' }] }}>
-        <Circle cx={taille / 2} cy={taille / 2} r={r} fill="none" stroke={PISTE} strokeWidth={ep} />
-        {part > 0 ? (
-          <Circle
-            cx={taille / 2} cy={taille / 2} r={r} fill="none"
-            stroke={C.lav} strokeWidth={ep} strokeLinecap={part < 1 ? 'round' : 'butt'}
-            strokeDasharray={`${part * L} ${L}`}
-          />
-        ) : null}
-        {trop > 0 ? (
-          <Circle cx={taille / 2} cy={taille / 2} r={r} fill="none" stroke={C.lavDark} strokeWidth={ep} strokeLinecap="round" strokeDasharray={`${trop * L} ${L}`} />
-        ) : null}
-      </Svg>
-      {children}
-    </View>
-  );
-}
-
-/** Petit cercle de progression du repas (à la place d'une illustration). */
-function MiniAnneau({ ratio, depasse }: { ratio: number; depasse: boolean }) {
-  const taille = 46, ep = 5, r = (taille - ep) / 2, L = 2 * Math.PI * r;
-  const part = Math.max(0, Math.min(1, ratio));
-  const trop = Math.max(0, Math.min(1, ratio - 1));
-  return (
-    <Svg width={taille} height={taille} style={{ transform: [{ rotate: '-90deg' }] }}>
-      <Circle cx={taille / 2} cy={taille / 2} r={r} fill="none" stroke={C.soft} strokeWidth={ep} />
-      {part > 0 ? (
-        <Circle cx={taille / 2} cy={taille / 2} r={r} fill="none" stroke={C.lav} strokeWidth={ep} strokeLinecap={part < 1 ? 'round' : 'butt'} strokeDasharray={`${part * L} ${L}`} />
-      ) : null}
-      {trop > 0 ? (
-        <Circle cx={taille / 2} cy={taille / 2} r={r} fill="none" stroke={C.lavDark} strokeWidth={ep} strokeLinecap="round" strokeDasharray={`${trop * L} ${L}`} />
-      ) : null}
-    </Svg>
-  );
-}
-
-/** Un repas : vide = simple ligne séparée par un trait ; avec des aliments = carte bordée. */
-function Repas({
-  repasKey, es, cibles, trait, ouvert, basculer,
-}: { repasKey: RepasKey; es: Entree[]; cibles: Totaux; trait: boolean; ouvert: boolean; basculer: () => void }) {
+/** Carte d'un repas : kcal, aliments, et les cercles de macros dépliables avec la flèche. */
+function CarteRepas({
+  repasKey, es, cibles, ouvert, basculer,
+}: { repasKey: RepasKey; es: Entree[]; cibles: Totaux; ouvert: boolean; basculer: () => void }) {
   const r = repasInfo(repasKey);
   const t = somme(es);
-  const plein = es.length > 0;
+  const Icone = IcRepas[r.key];
   const ouvrir = () => router.push({ pathname: '/repas/[repas]', params: { repas: r.key } });
   return (
-    <View
-      style={[
-        { paddingHorizontal: 16, paddingVertical: plein ? 16 : 20, gap: 12 },
-        plein ? { borderWidth: 1.5, borderColor: TRAIT, borderRadius: 26, marginVertical: 6, backgroundColor: '#fff' } : null,
-        trait ? { borderTopWidth: 1.5, borderTopColor: TRAIT, marginHorizontal: 0 } : null,
-      ]}
-    >
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Ouvrir ${r.nom}`} onPress={ouvrir} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 16, minHeight: 48 }}>
-          <MiniAnneau ratio={cibles.kcal ? t.kcal / cibles.kcal : 0} depasse={t.kcal > cibles.kcal} />
-          <View style={{ flex: 1, gap: 2 }}>
-            <Text style={{ fontFamily: F.display, fontSize: 19, color: C.ink }}>{r.nom}</Text>
-            <Text style={{ fontFamily: F.bodySemi, fontSize: 15, color: t.kcal > cibles.kcal ? MACRO.proteines.text : C.ink2 }}>
-              {fmt(t.kcal)} / {fmt(cibles.kcal)} kcal
+    <View style={[ui.carte, { padding: 12, paddingLeft: 14, gap: 10 }]}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Ouvrir ${r.nom}`} onPress={ouvrir} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48 }}>
+          <View style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: r.bg, alignItems: 'center', justifyContent: 'center' }}>
+            <Icone couleur={r.fg} taille={22} epais={2.2} />
+          </View>
+          <View style={{ flex: 1, gap: 1 }}>
+            <T style={{ fontFamily: F.bodyBold, fontSize: 15.5 }}>{r.nom}</T>
+            <Text style={{ fontFamily: F.bodyBold, fontSize: 13, color: t.kcal > cibles.kcal ? MACRO.proteines.text : C.lavText }}>
+              {fmt(t.kcal)} <Text style={{ fontFamily: F.body, color: C.ink2 }}>/ {fmt(cibles.kcal)} kcal</Text>
             </Text>
           </View>
         </Pressable>
-        <Rond label={`Ajouter au ${r.nom.toLowerCase()}`} fond={C.ink} onPress={ouvrir} taille={46}>
-          <Text style={{ color: '#fff', fontSize: 26, fontFamily: F.bodySemi, lineHeight: 28 }}>+</Text>
+        <Rond label={ouvert ? `Masquer les macros du ${r.nom.toLowerCase()}` : `Voir les macros du ${r.nom.toLowerCase()}`} fond="transparent" onPress={basculer} taille={40}>
+          <View style={{ transform: [{ rotate: ouvert ? '180deg' : '0deg' }] }}>
+            <IcBas couleur={C.ink2} taille={20} epais={2.6} />
+          </View>
+        </Rond>
+        <Rond
+          label={`Ajouter au ${r.nom.toLowerCase()}`}
+          fond={C.ink}
+          onPress={ouvrir}
+          style={{ ...shadow, shadowColor: C.ink, shadowOpacity: 0.25 }}
+        >
+          <Text style={{ color: '#fff', fontSize: 24, fontFamily: F.bodyBold, lineHeight: 26 }}>+</Text>
         </Rond>
       </View>
-
-      {plein ? (
-        <>
-          <Pressable onPress={ouvrir} accessibilityRole="button" accessibilityLabel={`Aliments du ${r.nom.toLowerCase()}`}>
-            <Text numberOfLines={2} style={{ fontFamily: F.bodySemi, fontSize: 15, color: C.ink, lineHeight: 21 }}>{regrouper(es)}</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={ouvert ? `Masquer les macros du ${r.nom.toLowerCase()}` : `Voir les macros du ${r.nom.toLowerCase()}`}
-            onPress={basculer}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', minHeight: 32 }}
-          >
-            <Text style={{ fontFamily: F.body, fontSize: 13.5, color: C.lavText }}>{ouvert ? 'Masquer les macros' : 'Voir les macros'}</Text>
-            <View style={{ transform: [{ rotate: ouvert ? '180deg' : '0deg' }] }}>
-              <IcBas couleur={C.lavText} taille={16} epais={2.6} />
-            </View>
-          </Pressable>
-          {ouvert ? <CerclesMacros t={t} cibles={cibles} taille={60} /> : null}
-        </>
+      {es.length ? (
+        <Pressable onPress={ouvrir} accessibilityRole="button" accessibilityLabel={`Aliments du ${r.nom.toLowerCase()}`}>
+          <Text numberOfLines={2} style={{ fontFamily: F.body, fontSize: 13.5, color: C.ink }}>
+            {regrouper(es)}
+          </Text>
+        </Pressable>
+      ) : null}
+      {ouvert ? (
+        <View style={{ borderTopWidth: 1.5, borderTopColor: '#F0EDFA', paddingTop: 12 }}>
+          <CerclesMacros t={t} cibles={cibles} taille={60} />
+        </View>
       ) : null}
     </View>
   );
