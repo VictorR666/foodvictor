@@ -24,12 +24,12 @@ export const C = {
 
 export type MacroKey = 'proteines' | 'glucides' | 'lipides' | 'fibres';
 
-// fill = barres / anneaux, text = texte lisible, bg = pastille
-export const MACRO: Record<MacroKey, { lettre: string; nom: string; fill: string; text: string; bg: string }> = {
-  proteines: { lettre: 'P', nom: 'Protéines', fill: '#F0695E', text: '#B83A30', bg: '#FFE3E0' },
-  glucides: { lettre: 'G', nom: 'Glucides', fill: '#F5A524', text: '#8A5A00', bg: '#FFF0D1' },
-  lipides: { lettre: 'L', nom: 'Lipides', fill: '#5B8DEF', text: '#2F5FC4', bg: '#E1EBFF' },
-  fibres: { lettre: 'F', nom: 'Fibres', fill: '#3FB57F', text: '#1F6F49', bg: '#DDF6E6' },
+// fill = barres / anneaux (pastel), fonce = dépassement de l'objectif, text = texte lisible, bg = fond / piste
+export const MACRO: Record<MacroKey, { lettre: string; nom: string; fill: string; fonce: string; text: string; bg: string }> = {
+  proteines: { lettre: 'P', nom: 'Protéines', fill: '#F4A29B', fonce: '#D9675C', text: '#B0463C', bg: '#FDEBE9' },
+  glucides: { lettre: 'G', nom: 'Glucides', fill: '#F3C77A', fonce: '#D69A2E', text: '#875A0B', bg: '#FDF3DF' },
+  lipides: { lettre: 'L', nom: 'Lipides', fill: '#9DBCF2', fonce: '#5884D6', text: '#3560B5', bg: '#E9F0FC' },
+  fibres: { lettre: 'F', nom: 'Fibres', fill: '#8FD1B1', fonce: '#3E9E72', text: '#22704C', bg: '#E4F5EC' },
 };
 export const MACRO_KEYS: MacroKey[] = ['proteines', 'glucides', 'lipides', 'fibres'];
 

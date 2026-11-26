@@ -107,7 +107,7 @@ export default function Journal() {
               <View key={k} style={{ flex: 1, gap: 4 }}>
                 <Text numberOfLines={1} style={{ fontFamily: F.bodyBold, fontSize: 12, color: MACRO[k].text }}>{MACRO[k].nom}</Text>
                 <View style={{ height: 6, borderRadius: 999, backgroundColor: MACRO[k].bg, overflow: 'hidden' }}>
-                  <View style={{ width: `${pct * 100}%`, height: '100%', backgroundColor: MACRO[k].fill, borderRadius: 999 }} />
+                  <View style={{ width: `${pct * 100}%`, height: '100%', backgroundColor: cible && total[k] > cible ? MACRO[k].fonce : MACRO[k].fill, borderRadius: 999 }} />
                 </View>
                 <Text style={{ fontFamily: F.body, fontSize: 12, color: C.ink2 }}>
                   <Text style={{ color: C.ink, fontFamily: F.bodyBold }}>{fmt(total[k])}</Text> / {fmt(cible)} g
