@@ -159,6 +159,17 @@ export async function saveObjectifs(o: Omit<Objectifs, 'id' | 'date_debut' | 'mo
   await changed('objectifs', id);
 }
 
+/** Cibles d'un repas : ses kcal, et les macros du jour au prorata de ces kcal. */
+export function ciblesRepas(o: Objectifs, repas: RepasKey): Totaux {
+  const kcal = objectifRepasKcal(o, repas);
+  const k = o.kcal ? kcal / o.kcal : 0;
+  return { kcal, proteines: o.proteines_g * k, glucides: o.glucides_g * k, lipides: o.lipides_g * k, fibres: o.fibres_g * k };
+}
+
+export function ciblesJour(o: Objectifs): Totaux {
+  return { kcal: o.kcal, proteines: o.proteines_g, glucides: o.glucides_g, lipides: o.lipides_g, fibres: o.fibres_g };
+}
+
 export function objectifRepasKcal(o: Objectifs, repas: RepasKey) {
   const v = { petit_dej: o.obj_petit_dej, dejeuner: o.obj_dejeuner, diner: o.obj_diner, collation: o.obj_collation }[repas];
   return Math.round(o.unite_repas === 'pct' ? (o.kcal * v) / 100 : v);

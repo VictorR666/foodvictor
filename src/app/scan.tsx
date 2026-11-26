@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ScannerWeb } from '../components/ScannerWeb';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
@@ -69,7 +70,9 @@ export default function Scan() {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#241F33' }}>
-      {perm?.granted ? (
+      {Platform.OS === 'web' ? (
+        <ScannerWeb actif={etat.type === 'vise' && manuel === null} onCode={traiter} />
+      ) : perm?.granted ? (
         <CameraView
           style={StyleSheet.absoluteFill}
           facing="back"
@@ -77,7 +80,7 @@ export default function Scan() {
           onBarcodeScanned={etat.type === 'vise' ? lu : undefined}
         />
       ) : null}
-      <SafeAreaView style={{ flex: 1, padding: 16, gap: 14 }}>
+      <SafeAreaView pointerEvents="box-none" style={{ flex: 1, padding: 16, gap: 14 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <Rond label="Retour" onPress={() => router.back()}>
             <IcRetour couleur={C.lavText} />
@@ -108,8 +111,15 @@ export default function Scan() {
           </View>
         ) : null}
 
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-          {!perm ? null : !perm.granted ? (
+        <View pointerEvents="box-none" style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+          {Platform.OS === 'web' ? (
+            etat.type === 'charge' ? (
+              <View style={{ backgroundColor: 'rgba(36,31,51,0.75)', borderRadius: 999, paddingHorizontal: 16, paddingVertical: 8, flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                <ActivityIndicator color="#fff" />
+                <Text style={{ color: '#fff', fontFamily: F.bodyBold, fontSize: 13.5 }}>Recherche du produit {etat.code}…</Text>
+              </View>
+            ) : null
+          ) : !perm ? null : !perm.granted ? (
             <View style={{ backgroundColor: '#fff', borderRadius: 28, padding: 20, gap: 12, alignItems: 'center' }}>
               <Text style={{ fontFamily: F.bodyBold, fontSize: 15, color: C.ink, textAlign: 'center' }}>
                 Foodvictor a besoin de la caméra pour lire les codes-barres.

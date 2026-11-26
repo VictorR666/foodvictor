@@ -1,14 +1,15 @@
 import { Pressable, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import {
-  Carte, Ecran, IcCheck, IcRepas, IcSync, Jauge, Rond, Sub, T, Titre, fmt, s as ui,
+  Carte, Ecran, IcBas, IcCheck, IcRepas, IcSync, Jauge, Rond, Sub, T, Titre, fmt, s as ui,
 } from '../../components/ui';
-import { entreesDuJour, getObjectifs, objectifRepasKcal, somme } from '../../db/repo';
+import { Entree, Totaux, ZERO, ciblesRepas, entreesDuJour, getObjectifs, somme } from '../../db/repo';
+import { CerclesMacros } from '../../components/CerclesMacros';
 import { LETTRE_JOUR, isoDate, parseIso, semaine, titreJour, libelleJour, addDays } from '../../lib/date';
 import { setJour, useData, useJour } from '../../lib/hooks';
 import { surEtatSync, EtatSync } from '../../lib/sync';
 import { useEffect, useState } from 'react';
-import { C, F, MACRO, MACRO_KEYS, REPAS, shadow } from '../../theme';
+import { C, F, MACRO, MACRO_KEYS, REPAS, RepasKey, repasInfo, shadow } from '../../theme';
 
 export default function Journal() {
   const jour = useJour();
@@ -17,6 +18,7 @@ export default function Journal() {
     return { entrees, obj };
   }, [jour]);
   const [sync, setSync] = useState<EtatSync>();
+  const [ouverts, setOuverts] = useState<Partial<Record<RepasKey, boolean>>>({});
   useEffect(() => surEtatSync(setSync), []);
 
   const entrees = data?.entrees ?? [];
@@ -117,49 +119,78 @@ export default function Journal() {
       </Carte>
 
       {/* Repas */}
-      {REPAS.map((r) => {
-        const es = entrees.filter((e) => e.repas === r.key);
-        const t = somme(es);
-        const cible = obj ? objectifRepasKcal(obj, r.key) : 0;
-        const Icone = IcRepas[r.key];
-        const noms = es.map((e) => e.libelle).join(', ');
-        return (
-          <View key={r.key} style={[ui.carte, { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, paddingLeft: 14 }]}>
-            <View style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: r.bg, alignItems: 'center', justifyContent: 'center' }}>
-              <Icone couleur={r.fg} taille={22} epais={2.2} />
-            </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`${r.nom}, ${Math.round(t.kcal)} sur ${cible} kcal`}
-              onPress={() => router.push({ pathname: '/repas/[repas]', params: { repas: r.key } })}
-              style={{ flex: 1, minHeight: 44, justifyContent: 'center', gap: 1 }}
-            >
-              <T style={{ fontFamily: F.bodyBold, fontSize: 15.5 }}>{r.nom}</T>
-              <Text style={{ fontFamily: F.bodyBold, fontSize: 13, color: t.kcal > cible ? MACRO.proteines.text : C.lavText }}>
-                {fmt(t.kcal)} <Text style={{ fontFamily: F.body, color: C.ink2 }}>/ {fmt(cible)} kcal</Text>
-              </Text>
-              {es.length ? (
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  {MACRO_KEYS.map((k) => (
-                    <Text key={k} style={{ fontFamily: F.bodyBold, fontSize: 11.5, color: MACRO[k].text }}>
-                      {MACRO[k].lettre} {fmt(t[k])}
-                    </Text>
-                  ))}
-                  <Text numberOfLines={1} style={{ flex: 1, fontFamily: F.body, fontSize: 11.5, color: C.ink2 }}>· {noms}</Text>
-                </View>
-              ) : null}
-            </Pressable>
-            <Rond
-              label={`Ajouter au ${r.nom.toLowerCase()}`}
-              fond={C.lavText}
-              onPress={() => router.push({ pathname: '/ajout', params: { repas: r.key } })}
-              style={{ ...shadow, shadowColor: C.lavText, shadowOpacity: 0.3 }}
-            >
-              <Text style={{ color: '#fff', fontSize: 24, fontFamily: F.bodyBold, lineHeight: 26 }}>+</Text>
-            </Rond>
-          </View>
-        );
-      })}
+      {REPAS.map((r) => (
+        <CarteRepas
+          key={r.key}
+          repasKey={r.key}
+          es={entrees.filter((e) => e.repas === r.key)}
+          cibles={obj ? ciblesRepas(obj, r.key) : ZERO}
+          ouvert={!!ouverts[r.key]}
+          basculer={() => setOuverts((o) => ({ ...o, [r.key]: !o[r.key] }))}
+        />
+      ))}
     </Ecran>
   );
+}
+
+/** Carte d'un repas : kcal, aliments, et les cercles de macros dépliables avec la flèche. */
+function CarteRepas({
+  repasKey, es, cibles, ouvert, basculer,
+}: { repasKey: RepasKey; es: Entree[]; cibles: Totaux; ouvert: boolean; basculer: () => void }) {
+  const r = repasInfo(repasKey);
+  const t = somme(es);
+  const Icone = IcRepas[r.key];
+  const ouvrir = () => router.push({ pathname: '/repas/[repas]', params: { repas: r.key } });
+  return (
+    <View style={[ui.carte, { padding: 12, paddingLeft: 14, gap: 10 }]}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Ouvrir ${r.nom}`} onPress={ouvrir} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48 }}>
+          <View style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: r.bg, alignItems: 'center', justifyContent: 'center' }}>
+            <Icone couleur={r.fg} taille={22} epais={2.2} />
+          </View>
+          <View style={{ flex: 1, gap: 1 }}>
+            <T style={{ fontFamily: F.bodyBold, fontSize: 15.5 }}>{r.nom}</T>
+            <Text style={{ fontFamily: F.bodyBold, fontSize: 13, color: t.kcal > cibles.kcal ? MACRO.proteines.text : C.lavText }}>
+              {fmt(t.kcal)} <Text style={{ fontFamily: F.body, color: C.ink2 }}>/ {fmt(cibles.kcal)} kcal</Text>
+            </Text>
+          </View>
+        </Pressable>
+        <Rond label={ouvert ? `Masquer les macros du ${r.nom.toLowerCase()}` : `Voir les macros du ${r.nom.toLowerCase()}`} fond="transparent" onPress={basculer} taille={40}>
+          <View style={{ transform: [{ rotate: ouvert ? '180deg' : '0deg' }] }}>
+            <IcBas couleur={C.ink2} taille={20} epais={2.6} />
+          </View>
+        </Rond>
+        <Rond
+          label={`Ajouter au ${r.nom.toLowerCase()}`}
+          fond={C.ink}
+          onPress={ouvrir}
+          style={{ ...shadow, shadowColor: C.ink, shadowOpacity: 0.25 }}
+        >
+          <Text style={{ color: '#fff', fontSize: 24, fontFamily: F.bodyBold, lineHeight: 26 }}>+</Text>
+        </Rond>
+      </View>
+      {es.length ? (
+        <Pressable onPress={ouvrir} accessibilityRole="button" accessibilityLabel={`Aliments du ${r.nom.toLowerCase()}`}>
+          <Text numberOfLines={2} style={{ fontFamily: F.body, fontSize: 13.5, color: C.ink }}>
+            {regrouper(es)}
+          </Text>
+        </Pressable>
+      ) : null}
+      {ouvert ? (
+        <View style={{ borderTopWidth: 1.5, borderTopColor: '#F0EDFA', paddingTop: 12 }}>
+          <CerclesMacros t={t} cibles={cibles} taille={60} />
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/** « Weetabix original ×2 (272 kcal), Lait (56 kcal) » : un même aliment n'apparaît qu'une fois. */
+function regrouper(es: Entree[]) {
+  const m = new Map<string, { n: number; kcal: number }>();
+  es.forEach((e) => {
+    const x = m.get(e.libelle) ?? { n: 0, kcal: 0 };
+    m.set(e.libelle, { n: x.n + 1, kcal: x.kcal + e.kcal });
+  });
+  return [...m.entries()].map(([nom, x]) => `${nom}${x.n > 1 ? ` ×${x.n}` : ''} (${fmt(x.kcal)} kcal)`).join(', ');
 }

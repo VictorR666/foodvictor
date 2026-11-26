@@ -1,99 +1,130 @@
 import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import {
-  Anneau, Bouton, Carte, Ecran, IcPoubelle, IcRetour, LigneMacros, Legende, Progression, Rond, Sub, T, Titre, fmt, s as ui,
-} from '../../components/ui';
-import {
-  Entree, entreesDuJour, getObjectifs, objectifRepasKcal, restaurerEntree, somme, supprimerEntree,
-} from '../../db/repo';
-import { libelleJour } from '../../lib/date';
+import { BlocAjout } from '../../components/BlocAjout';
+import { CerclesMacros } from '../../components/CerclesMacros';
+import { Carte, Ecran, IcBas, IcPoubelle, Progression, Rond, Segment, Sub, T, fmt } from '../../components/ui';
+import { Entree, ZERO, ciblesRepas, entreesDuJour, getObjectifs, restaurerEntree, somme, supprimerEntree } from '../../db/repo';
+import { libelleJour, titreJour } from '../../lib/date';
 import { useData, useJour } from '../../lib/hooks';
-import { C, F, RepasKey, repasInfo } from '../../theme';
+import { C, F, MACRO, REPAS, RepasKey, repasInfo, repasParDefaut, shadow } from '../../theme';
 
+/**
+ * Page repas (fusion du détail et de l'ajout, comme Foodvisor) :
+ * en haut les kcal et les cercles de macros du repas, puis ce qu'on y a mis,
+ * puis directement les outils d'ajout. Les compteurs bougent à chaque ajout.
+ */
 export default function Repas() {
-  const { repas } = useLocalSearchParams<{ repas: RepasKey }>();
+  const p = useLocalSearchParams<{ repas?: RepasKey }>();
+  const [repas, setRepas] = useState<RepasKey>(p.repas ?? repasParDefaut());
+  const [choix, setChoix] = useState(false);
   const r = repasInfo(repas);
   const jour = useJour();
   const [data] = useData(async () => {
     const [es, obj] = await Promise.all([entreesDuJour(jour), getObjectifs(jour)]);
-    return { es: es.filter((e) => e.repas === r.key), cible: objectifRepasKcal(obj, r.key) };
-  }, [jour, r.key]);
+    return { es: es.filter((e) => e.repas === repas), cibles: ciblesRepas(obj, repas) };
+  }, [jour, repas]);
   const [supprimee, setSupprimee] = useState<Entree | null>(null);
 
   const es = data?.es ?? [];
-  const cible = data?.cible ?? 0;
+  const cibles = data?.cibles ?? ZERO;
   const t = somme(es);
-
-  const supprimer = async (e: Entree) => {
-    await supprimerEntree(e.id);
-    setSupprimee(e);
-  };
+  const reste = cibles.kcal - t.kcal;
 
   return (
-    <Ecran bas={supprimee ? 70 : 0}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-        <Rond label="Retour au journal" onPress={() => router.back()}>
-          <IcRetour couleur={C.lavText} />
-        </Rond>
-        <View style={{ flex: 1 }}>
-          <Sub style={{ fontFamily: F.bodyBold }}>{libelleJour(jour)}</Sub>
-          <Titre>{r.nom}</Titre>
+    <View style={{ flex: 1 }}>
+      <Ecran bas={supprimee ? 80 : 10}>
+        {/* En-tête */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Changer de repas" onPress={() => setChoix((v) => !v)} style={{ flex: 1, paddingLeft: 4 }}>
+            <Sub style={{ fontFamily: F.bodyBold }}>{titreJour(jour) === libelleJour(jour) ? libelleJour(jour) : `${titreJour(jour)} · ${libelleJour(jour)}`}</Sub>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={{ fontFamily: F.display, fontSize: 26, color: C.ink }}>{r.nom}</Text>
+              <IcBas couleur={C.lavText} taille={18} epais={2.8} />
+            </View>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.back()}
+            style={({ pressed }) => ({ backgroundColor: C.ink, borderRadius: 999, minHeight: 48, paddingHorizontal: 22, justifyContent: 'center', opacity: pressed ? 0.85 : 1 })}
+          >
+            <Text style={{ color: '#fff', fontFamily: F.bodyBold, fontSize: 16 }}>Terminé</Text>
+          </Pressable>
         </View>
-        <Rond label={`Ajouter au ${r.nom.toLowerCase()}`} fond={C.lavText} onPress={() => router.push({ pathname: '/ajout', params: { repas: r.key } })}>
-          <Text style={{ color: '#fff', fontSize: 24, fontFamily: F.bodyBold, lineHeight: 26 }}>+</Text>
-        </Rond>
-      </View>
-
-      <Carte>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 18 }}>
-          <Anneau t={t} taille={130} centre={fmt(t.kcal)} sousCentre={`/ ${fmt(cible)} kcal`} />
-          <Legende t={t} />
-        </View>
-        <Progression ratio={cible ? t.kcal / cible : 0} degrade hauteur={8} />
-        <Sub>
-          {cible
-            ? t.kcal <= cible
-              ? `${Math.round((t.kcal / cible) * 100)} % de l'objectif · ${fmt(cible - t.kcal)} kcal restantes`
-              : `${fmt(t.kcal - cible)} kcal au-dessus de l'objectif du repas`
-            : 'Pas d’objectif pour ce repas'}
-        </Sub>
-      </Carte>
-
-      <Carte style={{ gap: 8 }}>
-        <Titre style={{ fontSize: 18, paddingHorizontal: 4 }}>
-          {es.length ? `${es.length} aliment${es.length > 1 ? 's' : ''}` : 'Rien pour le moment'}
-        </Titre>
-        {es.map((e) => (
-          <View key={e.id} style={ui.ligne}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Modifier ${e.libelle}`}
-              disabled={!e.aliment_id}
-              onPress={() => e.aliment_id && router.push({ pathname: '/aliment/[id]', params: { id: e.aliment_id, entree: e.id, repas: e.repas } })}
-              style={{ flex: 1, gap: 1, minHeight: 44, justifyContent: 'center' }}
-            >
-              <T style={{ fontFamily: F.bodyBold }} numberOfLines={1}>{e.libelle}</T>
-              <Sub>{e.quantite_g ? `${fmt(e.quantite_g)} g` : 'Saisie rapide'} · <Text style={{ color: C.ink, fontFamily: F.bodyBold }}>{fmt(e.kcal)} kcal</Text></Sub>
-              <LigneMacros t={e} />
-            </Pressable>
-            <Rond label={`Supprimer ${e.libelle}`} fond="transparent" onPress={() => supprimer(e)}>
-              <IcPoubelle couleur={C.ink2} taille={19} />
-            </Rond>
-          </View>
-        ))}
-        {!es.length ? (
-          <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'center' }}>
-            <Bouton petit titre="Scanner" onPress={() => router.push({ pathname: '/scan', params: { repas: r.key } })} />
-            <Bouton petit variante="doux" titre="Chercher un aliment" onPress={() => router.push({ pathname: '/ajout', params: { repas: r.key } })} />
-          </View>
+        {choix ? (
+          <Segment
+            options={REPAS.map((x) => ({ k: x.key, t: x.court }))}
+            valeur={repas}
+            onChange={(k) => {
+              setRepas(k);
+              setChoix(false);
+            }}
+          />
         ) : null}
-      </Carte>
 
-      {es.length ? <Bouton variante="doux" titre="+ Ajouter un aliment" onPress={() => router.push({ pathname: '/ajout', params: { repas: r.key } })} /> : null}
+        {/* Bilan du repas */}
+        <Carte style={{ gap: 14 }}>
+          <View style={{ gap: 6 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <T style={{ fontFamily: F.bodyBold }}>
+                <Text style={{ fontFamily: F.display, fontSize: 22 }}>{fmt(t.kcal)}</Text> / {fmt(cibles.kcal)} kcal
+              </T>
+              <Sub style={{ fontFamily: F.bodyBold, color: reste < 0 ? MACRO.proteines.text : C.ink2 }}>
+                {reste >= 0 ? `${fmt(reste)} kcal restantes` : `${fmt(-reste)} kcal en trop`}
+              </Sub>
+            </View>
+            <Progression ratio={cibles.kcal ? t.kcal / cibles.kcal : 0} degrade hauteur={10} />
+          </View>
+          <CerclesMacros t={t} cibles={cibles} />
+        </Carte>
+
+        {/* Ce qu'il y a dans le repas */}
+        {es.length ? (
+          <Carte style={{ gap: 4, paddingVertical: 10 }}>
+            <Sub style={{ fontFamily: F.bodyBold, paddingHorizontal: 4, paddingBottom: 2 }}>
+              Dans ce repas · {es.length} aliment{es.length > 1 ? 's' : ''}
+            </Sub>
+            {es.map((e) => (
+              <View key={e.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Modifier ${e.libelle}`}
+                  disabled={!e.aliment_id}
+                  onPress={() => e.aliment_id && router.push({ pathname: '/aliment/[id]', params: { id: e.aliment_id, entree: e.id, repas: e.repas } })}
+                  style={{ flex: 1, minHeight: 48, justifyContent: 'center', paddingHorizontal: 4 }}
+                >
+                  <T style={{ fontFamily: F.bodyBold }} numberOfLines={1}>{e.libelle}</T>
+                  <Sub>
+                    {fmt(e.kcal)} kcal{e.quantite_g ? `, ${fmt(e.quantite_g, 1)} g` : ' · saisie rapide'}
+                  </Sub>
+                </Pressable>
+                <Rond
+                  label={`Supprimer ${e.libelle}`}
+                  fond="transparent"
+                  onPress={async () => {
+                    await supprimerEntree(e.id);
+                    setSupprimee(e);
+                  }}
+                >
+                  <IcPoubelle couleur={C.ink2} taille={19} />
+                </Rond>
+              </View>
+            ))}
+          </Carte>
+        ) : null}
+
+        {/* Ajout */}
+        <Text style={{ fontFamily: F.display, fontSize: 19, color: C.ink, paddingHorizontal: 4, paddingTop: 4 }}>Ajouter des aliments</Text>
+        <BlocAjout repas={repas} jour={jour} />
+      </Ecran>
 
       {supprimee ? (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.ink, borderRadius: 999, paddingVertical: 8, paddingLeft: 18, paddingRight: 8 }}>
+        <View
+          style={{
+            position: 'absolute', left: 16, right: 16, bottom: 20, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.ink,
+            borderRadius: 999, paddingVertical: 8, paddingLeft: 18, paddingRight: 8, ...shadow,
+          }}
+        >
           <Text style={{ flex: 1, color: '#fff', fontFamily: F.bodyBold }} numberOfLines={1}>« {supprimee.libelle} » supprimé</Text>
           <Pressable
             accessibilityRole="button"
@@ -105,8 +136,11 @@ export default function Repas() {
           >
             <Text style={{ color: '#fff', fontFamily: F.bodyBold }}>Annuler</Text>
           </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setSupprimee(null)} style={{ minHeight: 40, paddingHorizontal: 8, justifyContent: 'center' }}>
+            <Text style={{ color: '#fff', fontFamily: F.bodyBold, fontSize: 18 }}>×</Text>
+          </Pressable>
         </View>
       ) : null}
-    </Ecran>
+    </View>
   );
 }
