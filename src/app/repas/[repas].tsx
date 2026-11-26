@@ -3,6 +3,7 @@ import { Pressable, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { BlocAjout } from '../../components/BlocAjout';
 import { CerclesMacros } from '../../components/CerclesMacros';
+import { Vignette } from '../../components/Visuel';
 import { Carte, Ecran, IcBas, IcPoubelle, Progression, Rond, Segment, Sub, T, fmt } from '../../components/ui';
 import { Entree, ZERO, ciblesRepas, entreesDuJour, getObjectifs, restaurerEntree, somme, supprimerEntree } from '../../db/repo';
 import { libelleJour, titreJour } from '../../lib/date';
@@ -85,7 +86,12 @@ export default function Repas() {
               Dans ce repas · {es.length} aliment{es.length > 1 ? 's' : ''}
             </Sub>
             {es.map((e) => (
-              <View key={e.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <View key={e.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Vignette
+                  taille={42}
+                  a={{ nom: e.libelle, source: e.source_aliment ?? 'perso', categorie: e.categorie, image_url: e.image_url,
+                    proteines_100g: e.proteines, glucides_100g: e.glucides, lipides_100g: e.lipides }}
+                />
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={`Modifier ${e.libelle}`}

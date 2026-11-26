@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { EnTetePhoto } from '../../components/Visuel';
+import { produitParCode } from '../../lib/off';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
@@ -6,10 +8,13 @@ import {
 } from '../../components/ui';
 import {
   Aliment, ajouterEntree, ajouterPortion, basculerFavori, definirPortionFavorite, getAliment, getEntree, grammageRapide, macrosPour,
-  modifierEntree, portionsDe, supprimerPortion,
+  definirImage, modifierEntree, portionsDe, supprimerPortion,
 } from '../../db/repo';
 import { useData, useJour } from '../../lib/hooks';
 import { C, F, MACRO, MACRO_KEYS, REPAS, RepasKey, repasInfo, repasParDefaut } from '../../theme';
+
+const HAUT = 260; // hauteur de l'image d'en-tête
+const dejaCherche = new Set<string>(); // une seule tentative de photo par produit et par session
 
 export default function FicheAliment() {
   const p = useLocalSearchParams<{ id: string; repas?: RepasKey; entree?: string; source?: string }>();
@@ -23,6 +28,7 @@ export default function FicheAliment() {
   const [repas, setRepas] = useState<RepasKey>(p.repas ?? repasParDefaut());
   const [nouveau, setNouveau] = useState<string | null>(null);
   const [menu, setMenu] = useState<string | null>(null);
+  const [photoKo, setPhotoKo] = useState(false); // photo qui ne charge pas (hors ligne…) : en-tête pastel
 
   // quantité de départ : celle de l'entrée modifiée, sinon le grammage favori / dernier
   useEffect(() => {
@@ -33,12 +39,22 @@ export default function FicheAliment() {
     } else grammageRapide(a).then((r) => setQte(String(r.g)));
   }, [a, data?.e]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Produit scanné avant l'arrivée des photos : on va la chercher une seule fois (un appel OFF, pas plus).
+  useEffect(() => {
+    if (!a || a.source !== 'off' || !a.code_barres || a.image_url != null || dejaCherche.has(a.id)) return;
+    dejaCherche.add(a.id);
+    produitParCode(a.code_barres)
+      .then((d) => definirImage(a.id, d.image_url ?? ''))
+      .catch(() => {});
+  }, [a]);
+
   if (!a) return <Ecran><Sub>Chargement…</Sub></Ecran>;
 
   const g = lireNombre(qte);
   const m = macrosPour(a, g);
   const portions = data?.portions ?? [];
   const pas = g >= 100 ? 10 : 5;
+  const surPhoto = !!a.image_url && !photoKo;
 
   const valider = async () => {
     if (g <= 0) return;
@@ -56,27 +72,41 @@ export default function FicheAliment() {
   };
 
   return (
-    <Ecran>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-        <Rond label="Retour" onPress={() => router.back()}>
-          <IcRetour couleur={C.lavText} />
-        </Rond>
-        <View style={{ flex: 1 }}>
-          <Titre style={{ fontSize: 22 }} numberOfLines={2}>{a.nom}</Titre>
-          <Sub style={{ fontFamily: F.bodyBold, color: a.source === 'off' ? C.okText : C.ink2 }}>
-            {[a.marque, a.source === 'off' ? (p.source === 'scan' ? 'Scanné · Open Food Facts' : 'Open Food Facts') : a.source === 'ciqual' ? 'Table Ciqual (Anses)' : 'Mon aliment'].filter(Boolean).join(' · ')}
-          </Sub>
-        </View>
-        {a.source === 'perso' ? (
-          <Rond label="Modifier l'aliment" onPress={() => router.push({ pathname: '/creer', params: { id: a.id } })}>
-            <IcCrayon couleur={C.lavText} taille={19} />
+    <View style={{ flex: 1, backgroundColor: C.bg }}>
+    <Ecran style={{ padding: 0, gap: 0 }} bas={84}>
+      <EnTetePhoto a={a} hauteur={HAUT} sansPhoto={photoKo} onErreur={() => setPhotoKo(true)} />
+      <View style={{ height: HAUT - 26, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 40, justifyContent: 'space-between' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Rond label="Retour" fond={surPhoto ? 'rgba(255,255,255,0.92)' : '#fff'} onPress={() => router.back()}>
+            <IcRetour couleur={C.lavText} />
           </Rond>
-        ) : null}
-        <Rond label={a.favori ? 'Retirer des favoris' : 'Ajouter aux favoris'} fond={a.favori ? C.peachSoft : '#fff'} onPress={() => basculerFavori(a)}>
-          <IcEtoile couleur={C.peachText} taille={20} epais={2.2} />
-        </Rond>
+          <View style={{ flex: 1 }} />
+          {a.source === 'perso' ? (
+            <Rond label="Modifier l'aliment" onPress={() => router.push({ pathname: '/creer', params: { id: a.id } })}>
+              <IcCrayon couleur={C.lavText} taille={19} />
+            </Rond>
+          ) : null}
+          <Rond label={a.favori ? 'Retirer des favoris' : 'Ajouter aux favoris'} fond={a.favori ? C.peachSoft : '#fff'} onPress={() => basculerFavori(a)}>
+            <IcEtoile couleur={C.peachText} taille={20} epais={2.2} />
+          </Rond>
+        </View>
+        <View style={{ gap: 2, paddingRight: surPhoto ? 0 : 110 }}>
+          <Titre
+            style={[{ fontSize: 26, lineHeight: 30 }, surPhoto && { color: '#fff', textShadowColor: 'rgba(0,0,0,0.45)', textShadowRadius: 8 }]}
+            numberOfLines={3}
+          >
+            {a.nom}
+          </Titre>
+          <Text
+            style={{ fontFamily: F.bodyBold, fontSize: 13, letterSpacing: 0.3, color: surPhoto ? 'rgba(255,255,255,0.92)' : C.ink2 }}
+            numberOfLines={1}
+          >
+            {[a.marque?.toUpperCase(), a.source === 'off' ? (p.source === 'scan' ? 'Scanné · Open Food Facts' : 'Open Food Facts') : a.source === 'ciqual' ? 'Table Ciqual (Anses)' : 'Mon aliment'].filter(Boolean).join(' · ')}
+          </Text>
+        </View>
       </View>
 
+      <View style={{ marginTop: -26, backgroundColor: C.bg, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 16, paddingTop: 20, gap: 12 }}>
       <Carte style={{ gap: 12 }}>
         <Lab>Quantité</Lab>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -174,12 +204,17 @@ export default function FicheAliment() {
         <Lab style={{ paddingLeft: 4 }}>Repas</Lab>
         <Segment options={REPAS.map((r) => ({ k: r.key, t: r.court }))} valeur={repas} onChange={setRepas} />
       </View>
+      </View>
+    </Ecran>
 
+    {/* Bouton toujours visible en bas, comme sur Foodvisor */}
+    <View style={{ position: 'absolute', left: 16, right: 16, bottom: 14 }}>
       <Bouton
-        titre={data?.e ? 'Enregistrer la modification' : `Ajouter au ${repasInfo(repas).nom.toLowerCase()}`}
+        titre={data?.e ? 'Enregistrer la modification' : `Ajouter au ${repasInfo(repas).nom.toLowerCase()} · ${fmt(m.kcal)} kcal`}
         onPress={valider}
         disabled={g <= 0}
       />
-    </Ecran>
+    </View>
+    </View>
   );
 }

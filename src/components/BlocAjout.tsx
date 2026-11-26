@@ -9,6 +9,7 @@ import {
   Aliment, AlimentData, ajouterEntree, enregistrerProduitOFF, favoris, grammageRapide, macrosPour, mesAliments, recents, rechercheLocale,
 } from '../db/repo';
 import { useData } from '../lib/hooks';
+import { Vignette } from './Visuel';
 import { rechercheEnLigne } from '../lib/off';
 import { C, F, RepasKey } from '../theme';
 
@@ -219,7 +220,8 @@ export function BlocAjout({ repas, jour }: { repas: RepasKey; jour: string }) {
                 Sur Open Food Facts · {enLigne.items.length} résultat{enLigne.items.length > 1 ? 's' : ''}
               </Sub>
               {enLigne.items.map((d) => (
-                <View key={d.code_barres!} style={[ui.ligne, { backgroundColor: 'transparent', minHeight: 60 }]}>
+                <View key={d.code_barres!} style={[ui.ligne, { backgroundColor: 'transparent', minHeight: 60, gap: 10 }]}>
+                  <Vignette a={d} />
                   <Pressable accessibilityRole="button" onPress={() => depuisEnLigne(d, 'ouvrir')} style={{ flex: 1, gap: 1 }}>
                     <T style={{ fontFamily: F.bodyBold }} numberOfLines={1}>{d.nom}</T>
                     {d.marque ? <Text style={{ fontFamily: F.bodyBold, fontSize: 11.5, color: C.ink2, textTransform: 'uppercase' }} numberOfLines={1}>{d.marque}</Text> : null}
@@ -267,7 +269,10 @@ function LigneAliment({ a, onOuvrir, onAjouter }: { a: Aliment; onOuvrir: () => 
   const g = rapide?.g ?? 100;
   const kcal = macrosPour(a, g).kcal;
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, paddingLeft: 10, paddingRight: 4, borderBottomWidth: 1, borderBottomColor: '#F0EDFA' }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, paddingLeft: 6, paddingRight: 4, borderBottomWidth: 1, borderBottomColor: '#F0EDFA' }}>
+      <Pressable accessibilityElementsHidden importantForAccessibility="no" onPress={onOuvrir}>
+        <Vignette a={a} />
+      </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel={`Ouvrir ${a.nom}`} onPress={onOuvrir} style={{ flex: 1, gap: 1, minHeight: 44, justifyContent: 'center' }}>
         <T style={{ fontFamily: F.bodyBold, fontSize: 15.5 }} numberOfLines={2}>{a.nom}</T>
         {a.marque ? <Text style={{ fontFamily: F.bodyBold, fontSize: 11.5, color: C.ink2, textTransform: 'uppercase' }} numberOfLines={1}>{a.marque}</Text> : null}

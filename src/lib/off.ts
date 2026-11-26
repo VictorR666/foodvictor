@@ -17,6 +17,7 @@ const PROD = 'https://world.openfoodfacts.org';
 const STAGING = 'https://world.openfoodfacts.net'; // identifiants off / off
 const FIELDS = [
   'code', 'product_name', 'product_name_fr', 'brands', 'quantity', 'serving_size', 'serving_quantity', 'nutriments',
+  'image_front_url', 'image_front_small_url', 'image_url',
 ].join(',');
 
 export class OffQuotaError extends Error {
@@ -116,6 +117,8 @@ export function produitVersAliment(p: any): AlimentData & { nutrimentsManquants:
     fibres_100g: r1(num(n['fiber_100g']) ?? 0),
     portion_produit_g: serving && serving > 0 ? serving : null,
     portion_produit_lib: p?.serving_size ? String(p.serving_size) : null,
+    // photo de face (400 px) ; '' = OFF n'en a pas (on ne redemandera pas)
+    image_url: String(p?.image_front_url || p?.image_url || p?.image_front_small_url || ''),
     nutrimentsManquants: kcal == null && prot == null && gluc == null && lip == null,
   };
 }

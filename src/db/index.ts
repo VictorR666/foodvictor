@@ -121,6 +121,10 @@ const MIGRATIONS: string[] = [
   `
   ALTER TABLE aliments ADD COLUMN categorie TEXT;
   `,
+  // v4 : photo du produit (Open Food Facts) ; '' = vérifié, pas de photo
+  `
+  ALTER TABLE aliments ADD COLUMN image_url TEXT;
+  `,
 ];
 
 /** Dans un navigateur, une seule fenêtre peut tenir la base ouverte à la fois. */

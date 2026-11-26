@@ -25,6 +25,7 @@ export type Aliment = {
   modifie_le: string;
   supprime: number;
   categorie?: string | null;
+  image_url?: string | null;
 };
 
 export type Portion = {
@@ -52,6 +53,10 @@ export type Entree = {
   cree_le: string;
   modifie_le: string;
   supprime: number;
+  // pour la vignette (lus dans l'aliment d'origine, pas stockés dans l'entrée)
+  image_url?: string | null;
+  categorie?: string | null;
+  source_aliment?: Aliment['source'] | null;
 };
 
 export type Objectifs = {
@@ -179,7 +184,12 @@ export function objectifRepasKcal(o: Objectifs, repas: RepasKey) {
 
 // ---------- Journal ----------
 export async function entreesDuJour(date: string) {
-  return db.getAllAsync<Entree>('SELECT * FROM entrees WHERE date = ? AND supprime = 0 ORDER BY cree_le', date);
+  return db.getAllAsync<Entree>(
+    `SELECT e.*, a.image_url AS image_url, a.categorie AS categorie, a.source AS source_aliment
+     FROM entrees e LEFT JOIN aliments a ON a.id = e.aliment_id
+     WHERE e.date = ? AND e.supprime = 0 ORDER BY e.cree_le`,
+    date,
+  );
 }
 
 export async function getEntree(id: string) {
@@ -254,9 +264,10 @@ export async function enregistrerProduitOFF(p: AlimentData) {
   if (ex) {
     await db.runAsync(
       `UPDATE aliments SET nom = ?, marque = ?, kcal_100g = ?, proteines_100g = ?, glucides_100g = ?, lipides_100g = ?, fibres_100g = ?,
-        portion_produit_g = ?, portion_produit_lib = ?, modifie_le = ?, supprime = 0, recherche = ? WHERE id = ?`,
+        portion_produit_g = ?, portion_produit_lib = ?, modifie_le = ?, supprime = 0, recherche = ?,
+        image_url = COALESCE(?, image_url) WHERE id = ?`,
       p.nom, p.marque, p.kcal_100g, p.proteines_100g, p.glucides_100g, p.lipides_100g, p.fibres_100g,
-      p.portion_produit_g, p.portion_produit_lib, now(), texteRecherche(p.nom, p.marque), id,
+      p.portion_produit_g, p.portion_produit_lib, now(), texteRecherche(p.nom, p.marque), p.image_url ?? null, id,
     );
   } else {
     await insererAliment(id, p);
@@ -268,10 +279,10 @@ export async function enregistrerProduitOFF(p: AlimentData) {
 async function insererAliment(id: string, p: AlimentData) {
   await db.runAsync(
     `INSERT INTO aliments (id, source, code_barres, nom, marque, kcal_100g, proteines_100g, glucides_100g, lipides_100g, fibres_100g,
-      portion_produit_g, portion_produit_lib, favori, dernier_g, utilise_le, modifie_le, supprime, recherche)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, NULL, ?, 0, ?)`,
+      portion_produit_g, portion_produit_lib, favori, dernier_g, utilise_le, modifie_le, supprime, recherche, image_url)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, NULL, ?, 0, ?, ?)`,
     id, p.source, p.code_barres, p.nom, p.marque, p.kcal_100g, p.proteines_100g, p.glucides_100g, p.lipides_100g,
-    p.fibres_100g, p.portion_produit_g, p.portion_produit_lib, now(), texteRecherche(p.nom, p.marque),
+    p.fibres_100g, p.portion_produit_g, p.portion_produit_lib, now(), texteRecherche(p.nom, p.marque), p.image_url ?? null,
   );
 }
 
@@ -290,6 +301,12 @@ export async function modifierAliment(id: string, p: Omit<AlimentData, 'source'>
     p.portion_produit_g, p.portion_produit_lib, now(), texteRecherche(p.nom, p.marque), id,
   );
   await changed('aliments', id);
+}
+
+/** Photo retrouvée après coup (produits scannés avant l'ajout des photos). Pas de synchro : c'est juste un visuel. */
+export async function definirImage(id: string, url: string) {
+  await db.runAsync('UPDATE aliments SET image_url = ? WHERE id = ?', url, id);
+  emitDataChange();
 }
 
 export async function basculerFavori(a: Aliment) {
