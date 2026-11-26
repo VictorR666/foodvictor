@@ -1,0 +1,24 @@
+# Diagnostic temporaire : Open Food Facts répond-il à une page web (CORS) ?
+name: Diagnostic OFF
+on:
+  push:
+    paths: ['.github/workflows/diag-off.yml']
+  workflow_dispatch:
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          UA='Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Mobile Safari/537.36'
+          F='code,product_name,product_name_fr,brands,quantity,serving_size,serving_quantity,nutriments,image_front_url,image_front_small_url,image_url'
+          for u in \
+            "https://world.openfoodfacts.org/api/v2/product/3017620422003?fields=$F" \
+            "https://world.openfoodfacts.org/api/v2/product/3270190021582?fields=$F" \
+            "https://world.openfoodfacts.org/cgi/search.pl?search_terms=galettes%20riz&search_simple=1&action=process&json=1&page_size=20&fields=$F" \
+            "https://search.openfoodfacts.org/search?q=galettes%20riz&page_size=5&fields=code,product_name" \
+            "https://images.openfoodfacts.org/images/products/301/762/042/2003/front_fr.633.400.jpg" ; do
+            echo "=== $u"
+            curl -sS -m 30 -o /tmp/corps -D - -w 'TEMPS %{time_total}s HTTP %{http_code}\n' -H "Origin: https://victorr666.github.io" -H "User-Agent: $UA" "$u" \
+              | grep -iE '^HTTP|access-control|content-type|cross-origin|^TEMPS|retry-after|server' || true
+            head -c 300 /tmp/corps | tr -d '\0' ; echo
+          done
