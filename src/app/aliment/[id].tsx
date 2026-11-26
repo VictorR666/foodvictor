@@ -7,11 +7,26 @@ import {
   Anneau, Bouton, Carte, Ecran, IcCrayon, IcEtoile, IcRetour, Lab, Legende, Puce, Rond, Segment, Sub, Titre, fmt, lireNombre,
 } from '../../components/ui';
 import {
-  Aliment, ajouterEntree, ajouterPortion, basculerFavori, definirPortionFavorite, getAliment, getEntree, grammageRapide, macrosPour,
+  Aliment, Portion, ajouterEntree, ajouterPortion, basculerFavori, definirPortionFavorite, getAliment, getEntree, grammageRapide, macrosPour,
   definirImage, modifierEntree, portionsDe, supprimerPortion,
 } from '../../db/repo';
 import { useData, useJour } from '../../lib/hooks';
 import { C, F, MACRO, MACRO_KEYS, REPAS, RepasKey, repasInfo, repasParDefaut } from '../../theme';
+
+type Unite = { cle: string; lib: string; g: number };
+/** Unités possibles pour compter en portions : tes grammages enregistrés (favori d'abord) puis la portion du produit. */
+function unitesDe(a: Aliment, portions: Portion[]): Unite[] {
+  const u = [...portions]
+    .sort((x, y) => y.favori - x.favori)
+    .map((pt) => ({ cle: pt.id, lib: pt.libelle, g: pt.grammes }));
+  if (a.portion_produit_g) u.push({ cle: 'produit', lib: a.portion_produit_lib || 'Portion', g: a.portion_produit_g });
+  return u.filter((x) => x.g > 0);
+}
+/** « 1 bouteille (250 g) » garde son libellé, « Bol » devient « Bol (40 g) ». */
+const nomUnite = (u: Unite) => (/\d\s*(g|ml|cl)\b/i.test(u.lib) ? u.lib : `${u.lib} (${fmt(u.g)} g)`);
+/** Dans le champ : « × bouteille » (le détail en grammes est juste en dessous). */
+const courtUnite = (u: Unite) => u.lib.replace(/\s*\(.*\)\s*$/, '').replace(/^1\s+/, '').trim() || 'portion';
+const arrondi = (n: number) => Math.round(n * 100) / 100;
 
 const HAUT = 260; // hauteur de l'image d'en-tête
 const dejaCherche = new Set<string>(); // une seule tentative de photo par produit et par session
@@ -24,7 +39,10 @@ export default function FicheAliment() {
     return { a, portions, e };
   }, [p.id, p.entree]);
   const a = data?.a;
-  const [qte, setQte] = useState('');
+  const [qte, setQte] = useState(''); // en grammes
+  const [unite, setUnite] = useState<string | null>(null); // compter en portions (null = en grammes)
+  const [nb, setNb] = useState('1');
+  const [pret, setPret] = useState(false);
   const [repas, setRepas] = useState<RepasKey>(p.repas ?? repasParDefaut());
   const [nouveau, setNouveau] = useState<string | null>(null);
   const [menu, setMenu] = useState<string | null>(null);
@@ -32,11 +50,21 @@ export default function FicheAliment() {
 
   // quantité de départ : celle de l'entrée modifiée, sinon le grammage favori / dernier
   useEffect(() => {
-    if (!a || qte) return;
-    if (data?.e?.quantite_g) {
-      setQte(String(data.e.quantite_g));
+    if (!a || !data || pret) return;
+    setPret(true);
+    const depart = (q: number) => {
+      setQte(String(q));
+      // Si la quantité tombe juste en portions (2 bouteilles, 1,5 bol…), on l'affiche ainsi.
+      const u = unitesDe(a, data.portions).find((x) => Math.abs((q / x.g) * 2 - Math.round((q / x.g) * 2)) < 0.01 && q >= x.g / 2);
+      if (u) {
+        setUnite(u.cle);
+        setNb(String(arrondi(q / u.g)));
+      }
+    };
+    if (data.e?.quantite_g) {
+      depart(data.e.quantite_g);
       setRepas(data.e.repas);
-    } else grammageRapide(a).then((r) => setQte(String(r.g)));
+    } else grammageRapide(a).then((r) => depart(r.g));
   }, [a, data?.e]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Produit scanné avant l'arrivée des photos : on va la chercher une seule fois (un appel OFF, pas plus).
@@ -50,7 +78,19 @@ export default function FicheAliment() {
 
   if (!a) return <Ecran><Sub>Chargement…</Sub></Ecran>;
 
-  const g = lireNombre(qte);
+  const unites = unitesDe(a, data?.portions ?? []);
+  const u = unites.find((x) => x.cle === unite) ?? null;
+  const g = u ? arrondi(lireNombre(nb) * u.g) : lireNombre(qte);
+  const n = lireNombre(nb);
+  const choisirUnite = (x: Unite | null) => {
+    if (x) {
+      setUnite(x.cle);
+      setNb(u?.cle === x.cle ? nb : '1');
+    } else {
+      setUnite(null);
+      setQte(String(Math.round(g)));
+    }
+  };
   const m = macrosPour(a, g);
   const portions = data?.portions ?? [];
   const pas = g >= 100 ? 10 : 5;
@@ -110,38 +150,55 @@ export default function FicheAliment() {
       <Carte style={{ gap: 12 }}>
         <Lab>Quantité</Lab>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Rond label={`Moins ${pas} g`} fond={C.lavSoft} taille={48} onPress={() => setQte(String(Math.max(0, g - pas)))}>
+          <Rond
+            label={u ? 'Une portion de moins' : `Moins ${pas} g`}
+            fond={C.lavSoft}
+            taille={48}
+            onPress={() => (u ? setNb(String(n > 1 ? arrondi(n - 1) : 0.5)) : setQte(String(Math.max(0, g - pas))))}
+          >
             <Text style={{ fontFamily: F.bodyBold, fontSize: 22, color: C.lavText }}>−</Text>
           </Rond>
-          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: C.soft, borderRadius: 999, minHeight: 52, paddingHorizontal: 18 }}>
+          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: C.soft, borderRadius: 999, minHeight: 52, paddingHorizontal: 18, gap: 6 }}>
             <TextInput
-              accessibilityLabel="Quantité en grammes"
-              value={qte}
-              onChangeText={(t) => setQte(t.replace(/[^0-9.,]/g, ''))}
+              accessibilityLabel={u ? 'Nombre de portions' : 'Quantité en grammes'}
+              value={u ? nb : qte}
+              onChangeText={(t) => (u ? setNb : setQte)(t.replace(/[^0-9.,]/g, ''))}
               keyboardType="decimal-pad"
               selectTextOnFocus
-              style={{ flex: 1, fontFamily: F.display, fontSize: 26, color: C.ink, paddingVertical: 0 }}
+              style={{ flex: 1, minWidth: 40, fontFamily: F.display, fontSize: 26, color: C.ink, paddingVertical: 0 }}
             />
-            <Text style={{ fontFamily: F.bodyBold, fontSize: 15, color: C.ink2 }}>g</Text>
+            <Text style={{ fontFamily: F.bodyBold, fontSize: 15, color: C.ink2, flexShrink: 1 }} numberOfLines={1}>
+              {u ? `× ${courtUnite(u)}` : 'g'}
+            </Text>
           </View>
-          <Rond label={`Plus ${pas} g`} fond={C.lavSoft} taille={48} onPress={() => setQte(String(g + pas))}>
+          <Rond
+            label={u ? 'Une portion de plus' : `Plus ${pas} g`}
+            fond={C.lavSoft}
+            taille={48}
+            onPress={() => (u ? setNb(String(n < 1 ? 1 : arrondi(n + 1))) : setQte(String(g + pas)))}
+          >
             <Text style={{ fontFamily: F.bodyBold, fontSize: 22, color: C.lavText }}>+</Text>
           </Rond>
         </View>
+        {u ? (
+          <Sub style={{ textAlign: 'center', fontFamily: F.bodyBold, marginTop: -4 }}>
+            {fmt(n, 2)} × {nomUnite(u)} = {fmt(g, 1)} g
+          </Sub>
+        ) : null}
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-          {portions.map((pt) => (
-            <Puce
-              key={pt.id}
-              titre={`${pt.favori ? '★ ' : ''}${pt.libelle} · ${fmt(pt.grammes)} g`}
-              actif={g === pt.grammes}
-              onPress={() => setQte(String(pt.grammes))}
-              onLongPress={() => setMenu(pt.id)}
-            />
-          ))}
-          {a.portion_produit_g ? (
-            <Puce titre={`${a.portion_produit_lib || 'Portion'} · ${fmt(a.portion_produit_g)} g`} actif={g === a.portion_produit_g && !portions.some((x) => x.grammes === g)} onPress={() => setQte(String(a.portion_produit_g))} />
-          ) : null}
-          <Puce titre="100 g" actif={g === 100 && !portions.some((x) => x.grammes === 100)} onPress={() => setQte('100')} />
+          <Puce titre="En grammes" actif={!u} onPress={() => choisirUnite(null)} />
+          {unites.map((x) => {
+            const perso = portions.find((pt) => pt.id === x.cle);
+            return (
+              <Puce
+                key={x.cle}
+                titre={`${perso?.favori ? '★ ' : ''}${nomUnite(x)}`}
+                actif={u?.cle === x.cle}
+                onPress={() => choisirUnite(x)}
+                onLongPress={perso ? () => setMenu(perso.id) : undefined}
+              />
+            );
+          })}
           {nouveau === null ? (
             <Pressable accessibilityRole="button" onPress={() => setNouveau('')} style={{ minHeight: 38, borderRadius: 999, paddingHorizontal: 14, justifyContent: 'center', borderWidth: 2, borderColor: C.lavSoft }}>
               <Text style={{ fontFamily: F.bodyBold, fontSize: 13, color: C.lavText }}>+ Enregistrer ce grammage</Text>
@@ -174,7 +231,7 @@ export default function FicheAliment() {
             <Bouton petit titre="OK" onPress={enregistrerGrammage} />
           </View>
         ) : (
-          <Sub style={{ fontSize: 12 }}>Appui long sur un grammage enregistré pour le mettre en favori : le « + » rapide l’utilisera.</Sub>
+          <Sub style={{ fontSize: 12 }}>Touche une portion pour en compter plusieurs (2 bouteilles…). Appui long sur un grammage enregistré pour le mettre en favori : le « + » rapide l’utilisera.</Sub>
         )}
       </Carte>
 
