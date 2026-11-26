@@ -10,6 +10,7 @@ import { Nunito_700Bold } from '@expo-google-fonts/nunito/700Bold';
 import { Nunito_800ExtraBold } from '@expo-google-fonts/nunito/800ExtraBold';
 import { estErreurDejaOuverte, fermerBase, migrate } from '../db';
 import { demarrerSyncAuto } from '../lib/sync';
+import { chargerCiqual } from '../lib/ciqual';
 import { C } from '../theme';
 
 export default function RootLayout() {
@@ -33,6 +34,8 @@ export default function RootLayout() {
       .then(() => {
         setPret(true);
         stop = demarrerSyncAuto();
+        // aliments génériques (riz, avoine…) : chargés en arrière-plan la première fois
+        chargerCiqual().catch(() => {});
       })
       .catch((e) => setErreur(estErreurDejaOuverte(e) ? 'deja_ouverte' : String(e?.message ?? e)));
     // Web : on rend la base en quittant la page, pour qu'un rechargement ou une autre fenêtre puisse l'ouvrir.

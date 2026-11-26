@@ -91,7 +91,7 @@ export function convertir(buffer) {
     const aliments = [];
     for (const l of lignes.slice(iEntete + 1)) {
       const code = l[c.code];
-      const nom = l[c.nom] ? String(l[c.nom]).trim() : '';
+      const nom = l[c.nom] ? String(l[c.nom]).replace(/\s+/g, ' ').trim() : '';
       if (!code || !nom) continue;
       const p = nombre(l[c.p]);
       const g = nombre(l[c.g]);
@@ -100,7 +100,7 @@ export function convertir(buffer) {
       let kcal = nombre(l[c.kcal]);
       if (kcal == null && [p, g, li].some((x) => x != null)) kcal = 4 * (p ?? 0) + 4 * (g ?? 0) + 9 * (li ?? 0) + 2 * (f ?? 0);
       if (kcal == null) continue;
-      aliments.push([String(code), nom, l[c.groupe] ? String(l[c.groupe]).trim() : '', Math.round(kcal), r1(p) ?? 0, r1(g) ?? 0, r1(li) ?? 0, r1(f) ?? 0]);
+      aliments.push([String(code), nom, l[c.groupe] ? String(l[c.groupe]).replace(/\s+/g, ' ').trim() : '', Math.round(kcal), r1(p) ?? 0, r1(g) ?? 0, r1(li) ?? 0, r1(f) ?? 0]);
     }
     return aliments;
   }

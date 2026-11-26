@@ -2,12 +2,13 @@ import * as Crypto from 'expo-crypto';
 import { db, SYNC_COLUMNS, SyncTable } from './index';
 import { emitDataChange } from '../lib/events';
 import { isoDate } from '../lib/date';
+import { motsRecherche, normaliser } from '../lib/texte';
 import type { RepasKey } from '../theme';
 
 // ---------- Types ----------
 export type Aliment = {
   id: string;
-  source: 'off' | 'perso';
+  source: 'off' | 'perso' | 'ciqual';
   code_barres: string | null;
   nom: string;
   marque: string | null;
@@ -252,9 +253,9 @@ export async function enregistrerProduitOFF(p: AlimentData) {
   if (ex) {
     await db.runAsync(
       `UPDATE aliments SET nom = ?, marque = ?, kcal_100g = ?, proteines_100g = ?, glucides_100g = ?, lipides_100g = ?, fibres_100g = ?,
-        portion_produit_g = ?, portion_produit_lib = ?, modifie_le = ?, supprime = 0 WHERE id = ?`,
+        portion_produit_g = ?, portion_produit_lib = ?, modifie_le = ?, supprime = 0, recherche = ? WHERE id = ?`,
       p.nom, p.marque, p.kcal_100g, p.proteines_100g, p.glucides_100g, p.lipides_100g, p.fibres_100g,
-      p.portion_produit_g, p.portion_produit_lib, now(), id,
+      p.portion_produit_g, p.portion_produit_lib, now(), texteRecherche(p.nom, p.marque), id,
     );
   } else {
     await insererAliment(id, p);
@@ -266,10 +267,10 @@ export async function enregistrerProduitOFF(p: AlimentData) {
 async function insererAliment(id: string, p: AlimentData) {
   await db.runAsync(
     `INSERT INTO aliments (id, source, code_barres, nom, marque, kcal_100g, proteines_100g, glucides_100g, lipides_100g, fibres_100g,
-      portion_produit_g, portion_produit_lib, favori, dernier_g, utilise_le, modifie_le, supprime)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, NULL, ?, 0)`,
+      portion_produit_g, portion_produit_lib, favori, dernier_g, utilise_le, modifie_le, supprime, recherche)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, NULL, ?, 0, ?)`,
     id, p.source, p.code_barres, p.nom, p.marque, p.kcal_100g, p.proteines_100g, p.glucides_100g, p.lipides_100g,
-    p.fibres_100g, p.portion_produit_g, p.portion_produit_lib, now(),
+    p.fibres_100g, p.portion_produit_g, p.portion_produit_lib, now(), texteRecherche(p.nom, p.marque),
   );
 }
 
@@ -283,9 +284,9 @@ export async function creerAlimentPerso(p: Omit<AlimentData, 'source'>) {
 export async function modifierAliment(id: string, p: Omit<AlimentData, 'source'>) {
   await db.runAsync(
     `UPDATE aliments SET nom = ?, marque = ?, code_barres = ?, kcal_100g = ?, proteines_100g = ?, glucides_100g = ?, lipides_100g = ?,
-      fibres_100g = ?, portion_produit_g = ?, portion_produit_lib = ?, modifie_le = ? WHERE id = ?`,
+      fibres_100g = ?, portion_produit_g = ?, portion_produit_lib = ?, modifie_le = ?, recherche = ? WHERE id = ?`,
     p.nom, p.marque, p.code_barres, p.kcal_100g, p.proteines_100g, p.glucides_100g, p.lipides_100g, p.fibres_100g,
-    p.portion_produit_g, p.portion_produit_lib, now(), id,
+    p.portion_produit_g, p.portion_produit_lib, now(), texteRecherche(p.nom, p.marque), id,
   );
   await changed('aliments', id);
 }
@@ -307,14 +308,36 @@ export async function favoris() {
 export async function mesAliments() {
   return db.getAllAsync<Aliment>("SELECT * FROM aliments WHERE supprime = 0 AND source = 'perso' ORDER BY nom COLLATE NOCASE");
 }
-/** Recherche locale uniquement : elle peut tourner à chaque frappe sans toucher Open Food Facts. */
+export const texteRecherche = (nom: string, marque?: string | null) => normaliser(`${nom} ${marque ?? ''}`);
+
+/**
+ * Recherche locale uniquement (tes aliments + la table Ciqual) : elle peut tourner à chaque frappe
+ * sans toucher Open Food Facts. Sans accents, tous les mots doivent apparaître.
+ * Ordre : aliments déjà utilisés, favoris, noms qui commencent par le premier mot, puis les plus courts.
+ */
 export async function rechercheLocale(q: string) {
-  const like = `%${q.trim().replace(/[%_]/g, '')}%`;
+  const mots = motsRecherche(q);
+  if (!mots.length) return [];
+  const brut = normaliser(q).split(' ')[0]; // premier mot tel que tapé (« pates » passe devant « pâté »)
+  const conditions = mots.map(() => 'recherche LIKE ?').join(' AND ');
   return db.getAllAsync<Aliment>(
-    `SELECT * FROM aliments WHERE supprime = 0 AND (nom LIKE ? OR marque LIKE ? OR code_barres = ?)
-     ORDER BY (utilise_le IS NULL), utilise_le DESC, nom COLLATE NOCASE LIMIT 40`,
-    like, like, q.trim(),
+    `SELECT * FROM aliments WHERE supprime = 0 AND (${conditions} OR code_barres = ?)
+     ORDER BY (utilise_le IS NULL), favori DESC, (recherche LIKE ?) DESC, (recherche LIKE ?) DESC, (recherche LIKE ?) DESC,
+       (source = 'ciqual'), length(nom), nom COLLATE NOCASE
+     LIMIT 50`,
+    ...mots.map((m) => `%${m}%`), q.trim(), `${brut}%`, `${mots[0]}%`, `%${brut}%`,
   );
+}
+
+/** Complète la colonne de recherche des aliments qui n'en ont pas (anciens, restaurés depuis la feuille). */
+export async function completerRecherche() {
+  const rows = await db.getAllAsync<{ id: string; nom: string; marque: string | null }>(
+    'SELECT id, nom, marque FROM aliments WHERE recherche IS NULL',
+  );
+  if (!rows.length) return;
+  await db.withTransactionAsync(async () => {
+    for (const r of rows) await db.runAsync('UPDATE aliments SET recherche = ? WHERE id = ?', texteRecherche(r.nom, r.marque), r.id);
+  });
 }
 
 // ---------- Grammages perso ----------
@@ -405,6 +428,7 @@ export async function appliquerLignes(tbl: SyncTable, rows: Record<string, unkno
       }
     }
   });
+  if (tbl === 'aliments') await completerRecherche();
   emitDataChange();
 }
 

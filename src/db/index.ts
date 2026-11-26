@@ -15,6 +15,7 @@ export const db = {
   getFirstAsync: ((...a: unknown[]) => (ouverte().getFirstAsync as (...x: unknown[]) => unknown)(...a)) as DB['getFirstAsync'],
   getAllAsync: ((...a: unknown[]) => (ouverte().getAllAsync as (...x: unknown[]) => unknown)(...a)) as DB['getAllAsync'],
   withTransactionAsync: ((t: () => Promise<void>) => ouverte().withTransactionAsync(t)) as DB['withTransactionAsync'],
+  prepareAsync: ((sql: string) => ouverte().prepareAsync(sql)) as DB['prepareAsync'],
 };
 
 // Colonnes synchronisées, dans l'ordre exact des onglets Google Sheets (voir apps-script/Code.gs).
@@ -110,6 +111,11 @@ const MIGRATIONS: string[] = [
     cle TEXT PRIMARY KEY NOT NULL,
     valeur TEXT
   );
+  `,
+  // v2 : colonne de recherche sans accents (riz, pâtes = pates…) pour les aliments, dont ceux de la table Ciqual
+  `
+  ALTER TABLE aliments ADD COLUMN recherche TEXT;
+  CREATE INDEX IF NOT EXISTS idx_aliments_source ON aliments(source);
   `,
 ];
 

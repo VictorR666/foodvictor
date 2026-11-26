@@ -64,7 +64,7 @@ export default function FicheAliment() {
         <View style={{ flex: 1 }}>
           <Titre style={{ fontSize: 22 }} numberOfLines={2}>{a.nom}</Titre>
           <Sub style={{ fontFamily: F.bodyBold, color: a.source === 'off' ? C.okText : C.ink2 }}>
-            {[a.marque, a.source === 'off' ? (p.source === 'scan' ? 'Scanné · Open Food Facts' : 'Open Food Facts') : 'Mon aliment'].filter(Boolean).join(' · ')}
+            {[a.marque, a.source === 'off' ? (p.source === 'scan' ? 'Scanné · Open Food Facts' : 'Open Food Facts') : a.source === 'ciqual' ? 'Table Ciqual (Anses)' : 'Mon aliment'].filter(Boolean).join(' · ')}
           </Sub>
         </View>
         {a.source === 'perso' ? (

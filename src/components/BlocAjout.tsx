@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
@@ -13,6 +13,8 @@ import { rechercheEnLigne } from '../lib/off';
 import { C, F, RepasKey } from '../theme';
 
 type Onglet = 'recents' | 'favoris' | 'perso';
+// Navigateur : pas de cadre noir autour du champ quand il a le focus (le contour lavande suffit).
+const sansContour = Platform.OS === 'web' ? ({ outlineWidth: 0 } as object) : {};
 
 /**
  * Bloc d'ajout façon Foodvisor : raccourcis, recherche, récents / favoris / mes aliments.
@@ -95,7 +97,7 @@ export function BlocAjout({ repas, jour }: { repas: RepasKey; jour: string }) {
           onSubmitEditing={() => {
             if (recherche && !liste?.length) chercherEnLigne();
           }}
-          style={{ flex: 1, fontFamily: F.body, fontSize: 15, color: C.ink, paddingVertical: 0 }}
+          style={[{ flex: 1, fontFamily: F.body, fontSize: 15, color: C.ink, paddingVertical: 0 }, sansContour]}
         />
         {q ? (
           <Pressable accessibilityLabel="Effacer" onPress={() => setQ('')} hitSlop={10}>
@@ -124,7 +126,7 @@ export function BlocAjout({ repas, jour }: { repas: RepasKey; jour: string }) {
             ))}
           </View>
         ) : (
-          <Sub style={{ paddingHorizontal: 8, paddingVertical: 6 }}>Dans tes aliments</Sub>
+          <Sub style={{ paddingHorizontal: 8, paddingVertical: 6 }}>Tes aliments et la table Ciqual</Sub>
         )}
 
         {(liste ?? []).map((a) => (
@@ -140,7 +142,7 @@ export function BlocAjout({ repas, jour }: { repas: RepasKey; jour: string }) {
                 : 'Tes aliments créés à la main apparaîtront ici.'}
           </Sub>
         ) : null}
-        {recherche && !liste?.length ? <Sub style={{ textAlign: 'center', padding: 10 }}>Rien dans tes aliments.</Sub> : null}
+        {recherche && !liste?.length ? <Sub style={{ textAlign: 'center', padding: 10 }}>Rien trouvé ici : essaie Open Food Facts pour les produits de marque.</Sub> : null}
 
         {recherche ? (
           enLigne.etat === 'rien' ? (
@@ -208,7 +210,7 @@ function LigneAliment({ a, onOuvrir, onAjouter }: { a: Aliment; onOuvrir: () => 
         <T style={{ fontFamily: F.bodyBold, fontSize: 15.5 }} numberOfLines={1}>{a.nom}</T>
         {a.marque ? <Text style={{ fontFamily: F.bodyBold, fontSize: 11.5, color: C.ink2, textTransform: 'uppercase' }} numberOfLines={1}>{a.marque}</Text> : null}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: a.source === 'off' ? '#8ED3C4' : C.lav }} />
+          <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: a.source === 'off' ? '#8ED3C4' : a.source === 'ciqual' ? '#F3C77A' : C.lav }} />
           <Sub numberOfLines={1} style={{ flex: 1 }}>
             {fmt(kcal)} kcal, {rapide?.libelle.startsWith('★') ? `${rapide.libelle} (${fmt(g, 1)} g)` : `${fmt(g, 1)} g`}
           </Sub>

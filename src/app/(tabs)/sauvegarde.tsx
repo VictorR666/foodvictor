@@ -9,6 +9,7 @@ import { heure, isoDate, libelleJour } from '../../lib/date';
 import { exporterCsvDetaille, exporterCsvResume, exporterJson, importerJson, Periode } from '../../lib/export';
 import { EtatSync, restaurerDepuisSheets, surEtatSync, synchroniser } from '../../lib/sync';
 import { C, F } from '../../theme';
+import { CIQUAL_INFO } from '../../lib/ciqual';
 
 export default function Sauvegarde() {
   const [etat, setEtat] = useState<EtatSync>();
@@ -141,6 +142,14 @@ export default function Sauvegarde() {
             if (n) alerte('Importé', `${n} lignes récupérées.`);
           })}
         />
+      </Carte>
+
+      <Carte style={{ gap: 6 }}>
+        <Lab>Sources des données</Lab>
+        <Sub>
+          Aliments génériques : table Ciqual de l’Anses ({CIQUAL_INFO.nombre} aliments, {CIQUAL_INFO.fichier.replace(/\.xlsx?$/, '')}), mise à jour automatique chaque mois.
+          Produits de marque : Open Food Facts (licence ODbL).
+        </Sub>
       </Carte>
 
       <Carte style={{ gap: 6 }}>
