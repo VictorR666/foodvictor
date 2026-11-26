@@ -76,14 +76,17 @@ export function convertir(buffer) {
       code: colonne(h, /^alim_code$/i),
       nom: colonne(h, /^alim_nom_fr$/i, /alim_nom_fr/i),
       groupe: colonne(h, /^alim_ssgrp_nom_fr$/i, /^alim_grp_nom_fr$/i),
-      kcal: colonne(h, /1169\/2011.*kcal/i, /kcal\/100/i),
+      kcal: colonne(h, /1169.?2011.*kcal/i, /nergie.*kcal/i, /kcal.?100/i),
       p: colonne(h, /Prot.*Jones/i, /^Prot[ée]ines/i),
-      g: colonne(h, /^Glucides \(g\/100/i, /^Glucides/i),
-      l: colonne(h, /^Lipides \(g\/100/i, /^Lipides/i),
+      g: colonne(h, /^Glucides \(g.?100/i, /^Glucides/i),
+      l: colonne(h, /^Lipides \(g.?100/i, /^Lipides/i),
       f: colonne(h, /^Fibres alimentaires/i, /^Fibres/i),
     };
     console.log('  feuille', nomFeuille, 'colonnes :', JSON.stringify(Object.fromEntries(Object.entries(c).map(([k, i]) => [k, h[i]]))));
-    if (Object.values(c).some((i) => i < 0)) throw new Error(`colonnes manquantes dans « ${nomFeuille} »`);
+    if (Object.values(c).some((i) => i < 0)) {
+      console.log('  en-têtes disponibles :', h.filter((x) => /nergie|kcal|prot|gluc|lipid|fibre/i.test(x)).join(' | '));
+      throw new Error(`colonnes manquantes dans « ${nomFeuille} »`);
+    }
     const r1 = (n) => (n == null ? null : Math.round(n * 10) / 10);
     const aliments = [];
     for (const l of lignes.slice(iEntete + 1)) {
