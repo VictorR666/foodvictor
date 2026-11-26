@@ -25,21 +25,22 @@ export function chargerCiqual() {
 
 async function charger() {
   await completerRecherche();
-  const version = `${table.fichier}|${table.genere_le}|${table.aliments.length}`;
+  const version = `${table.fichier}|${table.genere_le}|${table.aliments.length}|categorie`;
   if ((await getReglage(CLE)) === version) return;
   const t = now();
   const st = await db.prepareAsync(
     `INSERT INTO aliments (id, source, code_barres, nom, marque, kcal_100g, proteines_100g, glucides_100g, lipides_100g, fibres_100g,
-       portion_produit_g, portion_produit_lib, favori, dernier_g, utilise_le, modifie_le, supprime, recherche)
-     VALUES (?, 'ciqual', NULL, ?, NULL, ?, ?, ?, ?, ?, NULL, NULL, 0, NULL, NULL, ?, 0, ?)
+       portion_produit_g, portion_produit_lib, favori, dernier_g, utilise_le, modifie_le, supprime, recherche, categorie)
+     VALUES (?, 'ciqual', NULL, ?, NULL, ?, ?, ?, ?, ?, NULL, NULL, 0, NULL, NULL, ?, 0, ?, ?)
      ON CONFLICT(id) DO UPDATE SET nom = excluded.nom, kcal_100g = excluded.kcal_100g, proteines_100g = excluded.proteines_100g,
        glucides_100g = excluded.glucides_100g, lipides_100g = excluded.lipides_100g, fibres_100g = excluded.fibres_100g,
-       recherche = excluded.recherche`,
+       recherche = excluded.recherche, categorie = excluded.categorie`,
   );
   try {
     await db.withTransactionAsync(async () => {
-      for (const [code, nom, , kcal, p, g, l, f] of table.aliments) {
-        await st.executeAsync(`ciqual-${code}`, nom, kcal, p, g, l, f, t, texteRecherche(nom));
+      for (const [code, nom, groupe, kcal, p, g, l, f] of table.aliments) {
+        const categorie = groupe && groupe !== '-' ? groupe.charAt(0).toUpperCase() + groupe.slice(1) : null;
+        await st.executeAsync(`ciqual-${code}`, nom, kcal, p, g, l, f, t, texteRecherche(nom), categorie);
       }
     });
   } finally {

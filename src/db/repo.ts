@@ -24,6 +24,7 @@ export type Aliment = {
   utilise_le: string | null;
   modifie_le: string;
   supprime: number;
+  categorie?: string | null;
 };
 
 export type Portion = {
@@ -318,15 +319,53 @@ export const texteRecherche = (nom: string, marque?: string | null) => normalise
 export async function rechercheLocale(q: string) {
   const mots = motsRecherche(q);
   if (!mots.length) return [];
-  const brut = normaliser(q).split(' ')[0]; // premier mot tel que tapé (« pates » passe devant « pâté »)
   const conditions = mots.map(() => 'recherche LIKE ?').join(' AND ');
-  return db.getAllAsync<Aliment>(
-    `SELECT * FROM aliments WHERE supprime = 0 AND (${conditions} OR code_barres = ?)
-     ORDER BY (utilise_le IS NULL), favori DESC, (recherche LIKE ?) DESC, (recherche LIKE ?) DESC, (recherche LIKE ?) DESC,
-       (source = 'ciqual'), length(nom), nom COLLATE NOCASE
-     LIMIT 50`,
-    ...mots.map((m) => `%${m}%`), q.trim(), `${brut}%`, `${mots[0]}%`, `%${brut}%`,
+  const lignes = await db.getAllAsync<Aliment>(
+    `SELECT * FROM aliments WHERE supprime = 0 AND (${conditions} OR code_barres = ?) LIMIT 600`,
+    ...mots.map((m) => `%${m}%`), q.trim(),
   );
+  const premierTape = normaliser(q).split(' ')[0];
+  const cles = new Map(lignes.map((a) => [a.id, clePertinence(a, mots, premierTape)]));
+  return lignes.sort((a, b) => {
+    const x = cles.get(a.id)!, y = cles.get(b.id)!;
+    for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i] - y[i];
+    return a.nom.localeCompare(b.nom, 'fr');
+  });
+}
+
+const PETITS_MOTS = new Set(['d', 'de', 'du', 'des', 'l', 'la', 'le', 'les', 'a', 'au', 'aux', 'en', 'et', 'ou']);
+const sansPluriel = (m: string) => (m.length > 3 && m.endsWith('s') ? m.slice(0, -1) : m);
+
+/**
+ * Classement « le plus probable d'abord » (plus petit = mieux) :
+ * déjà utilisé, favori, puis le nom lui-même (« Pomme, crue » pour « pomme »),
+ * puis une variété (« Pomme Golden », « Pomme de terre »), puis le mot ailleurs (« Jus de pomme »),
+ * à égalité les aliments crus, tes aliments avant la table, les noms courts.
+ */
+function clePertinence(a: Aliment, tousMots: string[], premierTape: string) {
+  const utilesQ = tousMots.filter((m) => !PETITS_MOTS.has(m));
+  const mots = utilesQ.length ? utilesQ : tousMots;
+  const debut = normaliser(a.nom.split(',')[0]).split(' ').filter(Boolean).map(sansPluriel);
+  const utiles = debut.filter((m) => !PETITS_MOTS.has(m));
+  const tous = normaliser(a.nom).split(' ').map(sansPluriel);
+  const commence = mots.every((m, i) => utiles[i] === m);
+  const niveau =
+    commence && utiles.length === mots.length ? 0
+      : commence ? 1
+        : mots.every((m, i) => utiles[i]?.startsWith(m)) ? 2
+          : mots.every((m) => tous.includes(m)) ? 3
+            : 4;
+  return [
+    a.utilise_le ? 0 : 1,
+    a.favori ? 0 : 1,
+    /infantile/i.test(a.categorie ?? '') ? 1 : 0, // petits pots bébé en dernier
+    niveau,
+    normaliser(a.nom).split(' ')[0] === premierTape ? 0 : 1, // « pates » : Pâtes avant Pâte sablée
+    niveau <= 2 ? utiles.length : 0,
+    tous.includes('cru') || tous.includes('crue') ? 0 : 1,
+    a.source === 'ciqual' ? 1 : 0,
+    a.nom.length,
+  ];
 }
 
 /** Complète la colonne de recherche des aliments qui n'en ont pas (anciens, restaurés depuis la feuille). */

@@ -117,6 +117,10 @@ const MIGRATIONS: string[] = [
   ALTER TABLE aliments ADD COLUMN recherche TEXT;
   CREATE INDEX IF NOT EXISTS idx_aliments_source ON aliments(source);
   `,
+  // v3 : catégorie (groupe Ciqual : fruits, légumes…) pour filtrer les résultats de recherche
+  `
+  ALTER TABLE aliments ADD COLUMN categorie TEXT;
+  `,
 ];
 
 /** Dans un navigateur, une seule fenêtre peut tenir la base ouverte à la fois. */
