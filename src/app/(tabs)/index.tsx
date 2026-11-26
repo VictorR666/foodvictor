@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import Svg, { Circle } from 'react-native-svg';
-import { Ecran, IcBas, IcCalendrier, IcDroite, IcRetour, IcSync, Rond, fmt } from '../../components/ui';
+import { BarreDepassement, Ecran, IcBas, IcCalendrier, IcDroite, IcRetour, IcSync, Rond, fmt } from '../../components/ui';
 import { CerclesMacros } from '../../components/CerclesMacros';
 import { Entree, Totaux, ZERO, ciblesRepas, entreesDuJour, getObjectifs, somme } from '../../db/repo';
 import { LETTRE_JOUR, addDays, isoDate, libelleJour, parseIso, semaine, titreJour } from '../../lib/date';
@@ -69,9 +69,7 @@ export default function Journal() {
             const trop = !!cible && total[k] > cible;
             return (
               <View key={k} style={{ flex: 1, alignItems: 'center', gap: 8 }}>
-                <View style={{ alignSelf: 'stretch', height: 8, borderRadius: 999, backgroundColor: PISTE, overflow: 'hidden' }}>
-                  <View style={{ width: `${cible ? Math.min(1, total[k] / cible) * 100 : 0}%`, height: '100%', borderRadius: 999, backgroundColor: trop ? MACRO[k].fonce : MACRO[k].fill }} />
-                </View>
+                <BarreDepassement ratio={cible ? total[k] / cible : 0} couleur={MACRO[k].fill} fonce={MACRO[k].fonce} fond={PISTE} />
                 <Text numberOfLines={1} style={{ fontFamily: F.bodySemi, fontSize: 13, color: C.ink2 }}>{MACRO[k].nom}</Text>
                 {details ? (
                   <Text style={{ fontFamily: F.body, fontSize: 12.5, color: trop ? MACRO[k].text : C.ink, marginTop: -4 }}>
@@ -178,6 +176,7 @@ function Chiffre({ valeur, legende }: { valeur: number; legende: string }) {
 function AnneauKcal({ ratio, depasse, children }: { ratio: number; depasse: boolean; children: React.ReactNode }) {
   const taille = 132, ep = 9, r = (taille - ep) / 2, L = 2 * Math.PI * r;
   const part = Math.max(0, Math.min(1, ratio));
+  const trop = Math.max(0, Math.min(1, ratio - 1));
   return (
     <View style={{ width: taille, height: taille, alignItems: 'center', justifyContent: 'center' }}>
       <Svg width={taille} height={taille} style={{ position: 'absolute', transform: [{ rotate: '-90deg' }] }}>
@@ -185,9 +184,12 @@ function AnneauKcal({ ratio, depasse, children }: { ratio: number; depasse: bool
         {part > 0 ? (
           <Circle
             cx={taille / 2} cy={taille / 2} r={r} fill="none"
-            stroke={depasse ? MACRO.proteines.fonce : C.lav} strokeWidth={ep} strokeLinecap="round"
-            strokeDasharray={`${Math.max(0.01, part * L - (part < 1 ? 0 : 0.01))} ${L}`}
+            stroke={C.lav} strokeWidth={ep} strokeLinecap={part < 1 ? 'round' : 'butt'}
+            strokeDasharray={`${part * L} ${L}`}
           />
+        ) : null}
+        {trop > 0 ? (
+          <Circle cx={taille / 2} cy={taille / 2} r={r} fill="none" stroke={C.lavDark} strokeWidth={ep} strokeLinecap="round" strokeDasharray={`${trop * L} ${L}`} />
         ) : null}
       </Svg>
       {children}
@@ -199,11 +201,15 @@ function AnneauKcal({ ratio, depasse, children }: { ratio: number; depasse: bool
 function MiniAnneau({ ratio, depasse }: { ratio: number; depasse: boolean }) {
   const taille = 46, ep = 5, r = (taille - ep) / 2, L = 2 * Math.PI * r;
   const part = Math.max(0, Math.min(1, ratio));
+  const trop = Math.max(0, Math.min(1, ratio - 1));
   return (
     <Svg width={taille} height={taille} style={{ transform: [{ rotate: '-90deg' }] }}>
       <Circle cx={taille / 2} cy={taille / 2} r={r} fill="none" stroke={C.soft} strokeWidth={ep} />
       {part > 0 ? (
-        <Circle cx={taille / 2} cy={taille / 2} r={r} fill="none" stroke={depasse ? MACRO.proteines.fonce : C.lav} strokeWidth={ep} strokeLinecap="round" strokeDasharray={`${part * L} ${L}`} />
+        <Circle cx={taille / 2} cy={taille / 2} r={r} fill="none" stroke={C.lav} strokeWidth={ep} strokeLinecap={part < 1 ? 'round' : 'butt'} strokeDasharray={`${part * L} ${L}`} />
+      ) : null}
+      {trop > 0 ? (
+        <Circle cx={taille / 2} cy={taille / 2} r={r} fill="none" stroke={C.lavDark} strokeWidth={ep} strokeLinecap="round" strokeDasharray={`${trop * L} ${L}`} />
       ) : null}
     </Svg>
   );

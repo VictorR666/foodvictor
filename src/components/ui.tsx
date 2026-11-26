@@ -216,6 +216,23 @@ export function BarreRepartition({ t, hauteur = 8 }: { t: Totaux; hauteur?: numb
   );
 }
 
+/**
+ * Barre façon cercles de macros : se remplit dans la couleur pastel,
+ * puis le dépassement repart de la gauche dans la teinte foncée (plafonné à une barre de plus).
+ */
+export function BarreDepassement({ ratio, couleur, fonce, fond, hauteur = 8 }: { ratio: number; couleur: string; fonce: string; fond: string; hauteur?: number }) {
+  const base = Math.max(0, Math.min(1, ratio));
+  const trop = Math.max(0, Math.min(1, ratio - 1));
+  return (
+    <View style={{ alignSelf: 'stretch', height: hauteur, borderRadius: 999, backgroundColor: fond, overflow: 'hidden' }}>
+      <View style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${base * 100}%`, borderRadius: 999, backgroundColor: couleur }} />
+      {trop > 0 ? (
+        <View style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${trop * 100}%`, borderRadius: 999, backgroundColor: fonce }} />
+      ) : null}
+    </View>
+  );
+}
+
 export function Progression({ ratio, couleur, fond = C.lavSoft, hauteur = 6, degrade }: { ratio: number; couleur?: string; fond?: string; hauteur?: number; degrade?: boolean }) {
   const pct = Math.max(0, Math.min(1, ratio));
   return (
