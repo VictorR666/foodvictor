@@ -1,0 +1,43 @@
+# Récupère la table officielle Ciqual (Anses) et l'enregistre dans data/ciqual.json.
+# Se lance quand le script change, à la demande (onglet Actions), et une fois par mois pour suivre les mises à jour.
+name: Données Ciqual
+
+on:
+  push:
+    branches: [main]
+    paths: ['scripts/ciqual.mjs', '.github/workflows/ciqual.yml']
+  schedule:
+    - cron: '17 4 3 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  ciqual:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Téléchargement et conversion
+        run: node scripts/ciqual.mjs
+      - name: Enregistrement si la table a changé
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet -- data/ciqual.json && git ls-files --error-unmatch data/ciqual.json >/dev/null 2>&1; then
+            echo "Table inchangée."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/ciqual.json
+          git commit -m "Table Ciqual mise à jour"
+          git push
+          # republie l'app avec la nouvelle table
+          gh workflow run web.yml --ref main
