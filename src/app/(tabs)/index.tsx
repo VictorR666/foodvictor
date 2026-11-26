@@ -11,7 +11,8 @@ import { EtatSync, surEtatSync } from '../../lib/sync';
 import { C, F, MACRO, MACRO_KEYS, REPAS, RepasKey, repasInfo } from '../../theme';
 
 // Accueil épuré façon Foodvisor : bandeau coloré (kcal + 4 barres), puis la journée et les 4 repas.
-const BANDEAU = '#DCD4FB';
+const BANDEAU = '#F4F3F7'; // blanc grisâtre, très léger
+const PISTE = '#E6E3EE';
 const TRAIT = '#EEEBF6';
 
 export default function Journal() {
@@ -44,7 +45,7 @@ export default function Journal() {
   return (
     <Ecran bas={90} style={{ padding: 0, gap: 0 }}>
       {/* Bandeau */}
-      <View style={{ backgroundColor: BANDEAU, paddingTop: 22, paddingBottom: 46, paddingHorizontal: 20 }}>
+      <View style={{ backgroundColor: BANDEAU, paddingTop: 18, paddingBottom: 42, paddingHorizontal: 20 }}>
         {alerteSync ? (
           <Rond label={alerteSync.label} fond={alerteSync.bg} taille={38} onPress={() => router.navigate('/sauvegarde')} style={{ position: 'absolute', right: 14, top: 12, zIndex: 1 }}>
             <IcSync couleur={alerteSync.fg} taille={17} />
@@ -54,21 +55,21 @@ export default function Journal() {
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <Chiffre valeur={total.kcal} legende="Consommées" />
           <AnneauKcal ratio={objectif ? total.kcal / objectif : 0} depasse={restant < 0}>
-            <Text style={{ fontFamily: F.display, fontSize: 34, color: restant < 0 ? MACRO.proteines.text : C.ink, lineHeight: 38 }}>
+            <Text style={{ fontFamily: F.display, fontSize: 28, color: restant < 0 ? MACRO.proteines.text : C.ink, lineHeight: 32 }}>
               {fmt(Math.abs(restant))}
             </Text>
-            <Text style={{ fontFamily: F.body, fontSize: 14, color: C.ink2 }}>{restant < 0 ? 'kcal en trop' : 'kcal restantes'}</Text>
+            <Text style={{ fontFamily: F.bodySemi, fontSize: 12.5, color: C.ink2 }}>{restant < 0 ? 'kcal en trop' : 'kcal restantes'}</Text>
           </AnneauKcal>
           <Chiffre valeur={objectif} legende="Objectif" />
         </View>
 
-        <View style={{ flexDirection: 'row', gap: 14, marginTop: 26 }}>
+        <View style={{ flexDirection: 'row', gap: 14, marginTop: 22 }}>
           {MACRO_KEYS.map((k) => {
             const cible = cibleMacro(k);
             const trop = !!cible && total[k] > cible;
             return (
               <View key={k} style={{ flex: 1, alignItems: 'center', gap: 8 }}>
-                <View style={{ alignSelf: 'stretch', height: 8, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.75)', overflow: 'hidden' }}>
+                <View style={{ alignSelf: 'stretch', height: 8, borderRadius: 999, backgroundColor: PISTE, overflow: 'hidden' }}>
                   <View style={{ width: `${cible ? Math.min(1, total[k] / cible) * 100 : 0}%`, height: '100%', borderRadius: 999, backgroundColor: trop ? MACRO[k].fonce : MACRO[k].fill }} />
                 </View>
                 <Text numberOfLines={1} style={{ fontFamily: F.bodySemi, fontSize: 13, color: C.ink2 }}>{MACRO[k].nom}</Text>
@@ -96,19 +97,19 @@ export default function Journal() {
       {/* Feuille blanche */}
       <View style={{ marginTop: -26, backgroundColor: C.bg, borderTopLeftRadius: 30, borderTopRightRadius: 30, paddingHorizontal: 16, paddingTop: 16, gap: 6 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <Rond label="Jour précédent" fond={C.soft} taille={48} onPress={() => setJour(addDays(jour, -1))}>
+          <Rond label="Jour précédent" fond={BANDEAU} taille={48} onPress={() => setJour(addDays(jour, -1))}>
             <IcRetour couleur={C.ink} taille={20} epais={2.6} />
           </Rond>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`${libelleJour(jour)}, choisir un autre jour`}
             onPress={() => setSemaineOuverte((o) => !o)}
-            style={{ flex: 1, minHeight: 48, borderRadius: 999, backgroundColor: C.soft, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 }}
+            style={{ flex: 1, minHeight: 48, borderRadius: 999, backgroundColor: BANDEAU, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 }}
           >
             <IcCalendrier couleur={C.ink} taille={22} epais={2} />
             <Text style={{ fontFamily: F.display, fontSize: 19, color: C.ink }}>{titreJour(jour)}</Text>
           </Pressable>
-          <Rond label="Jour suivant" fond={C.soft} taille={48} onPress={() => setJour(addDays(jour, 1))}>
+          <Rond label="Jour suivant" fond={BANDEAU} taille={48} onPress={() => setJour(addDays(jour, 1))}>
             <IcDroite couleur={C.ink} taille={20} epais={2.6} />
           </Rond>
         </View>
@@ -167,24 +168,24 @@ export default function Journal() {
 function Chiffre({ valeur, legende }: { valeur: number; legende: string }) {
   return (
     <View style={{ width: 92, alignItems: 'center', gap: 2 }}>
-      <Text style={{ fontFamily: F.display, fontSize: 26, color: C.ink }}>{fmt(valeur)}</Text>
-      <Text style={{ fontFamily: F.bodySemi, fontSize: 13.5, color: C.ink2 }}>{legende}</Text>
+      <Text style={{ fontFamily: F.display, fontSize: 22, color: C.ink }}>{fmt(valeur)}</Text>
+      <Text style={{ fontFamily: F.bodySemi, fontSize: 13, color: C.ink2 }}>{legende}</Text>
     </View>
   );
 }
 
 /** Cercle des kcal du jour : piste blanche, progression qui part du haut. */
 function AnneauKcal({ ratio, depasse, children }: { ratio: number; depasse: boolean; children: React.ReactNode }) {
-  const taille = 168, ep = 12, r = (taille - ep) / 2, L = 2 * Math.PI * r;
+  const taille = 132, ep = 9, r = (taille - ep) / 2, L = 2 * Math.PI * r;
   const part = Math.max(0, Math.min(1, ratio));
   return (
     <View style={{ width: taille, height: taille, alignItems: 'center', justifyContent: 'center' }}>
       <Svg width={taille} height={taille} style={{ position: 'absolute', transform: [{ rotate: '-90deg' }] }}>
-        <Circle cx={taille / 2} cy={taille / 2} r={r} fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth={ep} />
+        <Circle cx={taille / 2} cy={taille / 2} r={r} fill="none" stroke={PISTE} strokeWidth={ep} />
         {part > 0 ? (
           <Circle
             cx={taille / 2} cy={taille / 2} r={r} fill="none"
-            stroke={depasse ? MACRO.proteines.fonce : C.lavText} strokeWidth={ep} strokeLinecap="round"
+            stroke={depasse ? MACRO.proteines.fonce : C.lav} strokeWidth={ep} strokeLinecap="round"
             strokeDasharray={`${Math.max(0.01, part * L - (part < 1 ? 0 : 0.01))} ${L}`}
           />
         ) : null}
