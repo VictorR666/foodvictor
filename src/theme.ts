@@ -52,8 +52,8 @@ export type RepasKey = 'petit_dej' | 'dejeuner' | 'diner' | 'collation';
 export const REPAS: { key: RepasKey; nom: string; court: string; bg: string; fg: string }[] = [
   { key: 'petit_dej', nom: 'Petit-déjeuner', court: 'Petit-déj', bg: C.peachSoft, fg: C.peachText },
   { key: 'dejeuner', nom: 'Déjeuner', court: 'Déjeuner', bg: C.mintSoft, fg: '#1F7A50' },
-  { key: 'diner', nom: 'Dîner', court: 'Dîner', bg: C.lavSoft, fg: C.lavText },
   { key: 'collation', nom: 'Collation', court: 'Collation', bg: C.peachSoft, fg: C.peachText },
+  { key: 'diner', nom: 'Dîner', court: 'Dîner', bg: C.lavSoft, fg: C.lavText },
 ];
 export const repasInfo = (k: RepasKey) => REPAS.find((r) => r.key === k) ?? REPAS[0];
 

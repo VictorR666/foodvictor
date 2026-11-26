@@ -48,8 +48,8 @@ export default function Objectifs() {
   const enregistrer = async () => {
     await saveObjectifs({
       kcal, proteines_g: lireNombre(f.proteines), glucides_g: lireNombre(f.glucides), lipides_g: lireNombre(f.lipides),
-      fibres_g: lireNombre(f.fibres), unite_repas: f.unite, obj_petit_dej: repasVals[0], obj_dejeuner: repasVals[1],
-      obj_diner: repasVals[2], obj_collation: repasVals[3],
+      fibres_g: lireNombre(f.fibres), unite_repas: f.unite, obj_petit_dej: lireNombre(f.petit_dej), obj_dejeuner: lireNombre(f.dejeuner),
+      obj_diner: lireNombre(f.diner), obj_collation: lireNombre(f.collation),
     });
     setDepuis(isoDate());
     setOk(true);
