@@ -15,6 +15,9 @@ import { getReglage } from '../db/repo';
 
 const PROD = 'https://world.openfoodfacts.org';
 const STAGING = 'https://world.openfoodfacts.net'; // identifiants off / off
+// Moteur de recherche d'OFF (Search-a-licious) : rapide et compatible navigateur.
+// L'ancienne recherche /cgi/search.pl renvoie souvent 503 sans en-tête CORS (= « Failed to fetch »).
+const RECHERCHE = 'https://search.openfoodfacts.org';
 const FIELDS = [
   'code', 'product_name', 'product_name_fr', 'brands', 'quantity', 'serving_size', 'serving_quantity', 'nutriments',
   'image_front_url', 'image_front_small_url', 'image_url',
@@ -58,18 +61,24 @@ async function userAgent() {
 
 const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function requete(path: string): Promise<any> {
+async function requete(path: string, essais = 3): Promise<any> {
   const { url, staging } = await base();
+  return requeteUrl(url + path, staging, essais);
+}
+
+const MSG_INDISPONIBLE = 'Open Food Facts ne répond pas pour le moment (serveur indisponible). Réessaie dans quelques minutes.';
+
+async function requeteUrl(adresse: string, staging: boolean, essais = 3): Promise<any> {
   // Un navigateur interdit de changer le User-Agent : sur le web, on ne l'envoie pas (cela forcerait
   // en plus une requête de pré-vérification CORS). L'app Android, elle, s'identifie.
   const headers: Record<string, string> = Platform.OS === 'web' ? {} : { 'User-Agent': await userAgent(), Accept: 'application/json' };
   if (staging) headers.Authorization = 'Basic b2ZmOm9mZg=='; // off:off
   let derniere: unknown;
-  for (let essai = 0; essai < 3; essai++) {
+  for (let essai = 0; essai < essais; essai++) {
     try {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 12_000);
-      const res = await fetch(url + path, { headers, signal: ctrl.signal });
+      const res = await fetch(adresse, { headers, signal: ctrl.signal });
       clearTimeout(timer);
       if (res.status === 404) return { status: 0 };
       if (res.status === 429 || res.status >= 500) {
@@ -83,9 +92,12 @@ async function requete(path: string): Promise<any> {
       if (e instanceof Error && e.message.startsWith('Open Food Facts a refusé')) throw e;
       derniere = e;
     }
-    await dormir(1000 * 2 ** essai + Math.random() * 500);
+    if (essai < essais - 1) await dormir(1000 * 2 ** essai + Math.random() * 500);
   }
-  throw new Error(`Open Food Facts ne répond pas (${derniere instanceof Error ? derniere.message : 'réseau'}).`);
+  // « Failed to fetch » : réseau coupé, ou page d'erreur du serveur sans en-tête CORS.
+  const detail = derniere instanceof Error ? derniere.message : '';
+  if (/failed to fetch|network|load failed|abort|HTTP 5|HTTP 429/i.test(detail) || !detail) throw new Error(MSG_INDISPONIBLE);
+  throw new Error(`Open Food Facts ne répond pas (${detail}).`);
 }
 
 function num(v: unknown): number | null {
@@ -140,11 +152,51 @@ export function produitParCode(code: string) {
   return p;
 }
 
-/** Recherche en ligne, déclenchée uniquement par un bouton (jamais à la frappe). */
-export async function rechercheEnLigne(q: string) {
+export type ResultatEnLigne = {
+  code: string;
+  nom: string;
+  marque: string | null;
+  quantite: string | null;
+  image_url: string;
+  /** Valeurs nutritionnelles si la recherche les a données ; sinon lues à la sélection (1 lecture produit). */
+  complet: AlimentData | null;
+};
+
+const marqueDe = (b: unknown) => {
+  const premiere = Array.isArray(b) ? b[0] : typeof b === 'string' ? b.split(',')[0] : null;
+  return premiere ? String(premiere).replace(/^[a-z]{2}:/, '').trim() || null : null;
+};
+
+/**
+ * Recherche en ligne, déclenchée uniquement par un bouton (jamais à la frappe).
+ * 1. Search-a-licious (nom, marque, photo) ; 2. si indisponible, l'ancienne recherche (avec nutriments).
+ */
+export async function rechercheEnLigne(q: string): Promise<ResultatEnLigne[]> {
   reserver('recherche');
-  const params = `search_terms=${encodeURIComponent(q.trim())}&search_simple=1&action=process&json=1&page_size=20&fields=${FIELDS}`;
-  const json = await requete(`/cgi/search.pl?${params}`);
-  const list: any[] = json?.products ?? [];
-  return list.map(produitVersAliment).filter((a) => a.code_barres && !a.nutrimentsManquants);
+  const termes = encodeURIComponent(q.trim());
+  try {
+    const champs = 'code,product_name,product_name_fr,brands,quantity,image_front_url,image_front_small_url,image_url';
+    const json = await requeteUrl(`${RECHERCHE}/search?q=${termes}&langs=fr&page_size=20&fields=${champs}`, false, 2);
+    const hits: any[] = json?.hits ?? [];
+    return hits
+      .filter((h) => h?.code)
+      .map((h) => ({
+        code: String(h.code),
+        nom: String(h.product_name_fr || h.product_name || 'Produit sans nom').trim(),
+        marque: marqueDe(h.brands),
+        quantite: h.quantity ? String(h.quantity) : null,
+        image_url: String(h.image_front_url || h.image_url || h.image_front_small_url || ''),
+        complet: null,
+      }));
+  } catch {
+    const params = `search_terms=${termes}&search_simple=1&action=process&json=1&page_size=20&fields=${FIELDS}`;
+    const json = await requete(`/cgi/search.pl?${params}`, 2);
+    const list: any[] = json?.products ?? [];
+    return list
+      .map(produitVersAliment)
+      .filter((a) => a.code_barres && !a.nutrimentsManquants)
+      .map(({ nutrimentsManquants: _n, ...a }) => ({
+        code: a.code_barres!, nom: a.nom, marque: a.marque, quantite: null, image_url: a.image_url ?? '', complet: a,
+      }));
+  }
 }

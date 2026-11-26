@@ -6,11 +6,11 @@ import {
   Bouton, IcCheck, IcCode, IcEclair, IcEtoile, IcLoupe, IcPlus, Sub, T, fmt, s as ui,
 } from './ui';
 import {
-  Aliment, AlimentData, ajouterEntree, enregistrerProduitOFF, favoris, grammageRapide, macrosPour, mesAliments, recents, rechercheLocale,
+  Aliment, ajouterEntree, alimentParCode, enregistrerProduitOFF, favoris, grammageRapide, macrosPour, mesAliments, recents, rechercheLocale,
 } from '../db/repo';
 import { useData } from '../lib/hooks';
 import { Vignette } from './Visuel';
-import { rechercheEnLigne } from '../lib/off';
+import { ResultatEnLigne, produitParCode, rechercheEnLigne } from '../lib/off';
 import { C, F, RepasKey } from '../theme';
 
 type Onglet = 'recents' | 'favoris' | 'perso';
@@ -33,7 +33,7 @@ const familleDe = (a: Aliment) => {
 export function BlocAjout({ repas, jour }: { repas: RepasKey; jour: string }) {
   const [q, setQ] = useState('');
   const [onglet, setOnglet] = useState<Onglet>('recents');
-  const [enLigne, setEnLigne] = useState<{ etat: 'rien' | 'charge' | 'ok' | 'erreur'; items: AlimentData[]; msg?: string }>({ etat: 'rien', items: [] });
+  const [enLigne, setEnLigne] = useState<{ etat: 'rien' | 'charge' | 'ok' | 'erreur'; items: ResultatEnLigne[]; msg?: string }>({ etat: 'rien', items: [] });
 
   const [liste] = useData(async () => {
     if (q.trim().length >= 2) return rechercheLocale(q);
@@ -72,10 +72,29 @@ export function BlocAjout({ repas, jour }: { repas: RepasKey; jour: string }) {
     }
   };
 
-  const depuisEnLigne = async (d: AlimentData, action: 'ouvrir' | 'ajouter') => {
-    const a = await enregistrerProduitOFF(d);
-    if (action === 'ouvrir') ouvrir(a);
-    else ajouterVite(a);
+  // Résultat en ligne → aliment local. Si la recherche n'a pas donné les valeurs, une seule lecture produit
+  // (rien du tout si le produit est déjà dans la base).
+  const [ouvertureEnCours, setOuvertureEnCours] = useState<string | null>(null);
+  const depuisEnLigne = async (r: ResultatEnLigne, action: 'ouvrir' | 'ajouter') => {
+    if (ouvertureEnCours) return;
+    setOuvertureEnCours(r.code);
+    try {
+      let a = r.complet ? await enregistrerProduitOFF(r.complet) : await alimentParCode(r.code);
+      if (!a) {
+        const { nutrimentsManquants, ...d } = await produitParCode(r.code);
+        if (nutrimentsManquants) {
+          router.push({ pathname: '/creer', params: { code: r.code, nom: d.nom, marque: d.marque ?? '', repas } });
+          return;
+        }
+        a = await enregistrerProduitOFF(d);
+      }
+      if (action === 'ouvrir') ouvrir(a);
+      else await ajouterVite(a);
+    } catch (e) {
+      setEnLigne((x) => ({ ...x, msg: e instanceof Error ? e.message : 'Produit indisponible.' }));
+    } finally {
+      setOuvertureEnCours(null);
+    }
   };
 
   const recherche = q.trim().length >= 2;
@@ -219,15 +238,23 @@ export function BlocAjout({ repas, jour }: { repas: RepasKey; jour: string }) {
               <Sub style={{ paddingHorizontal: 8, paddingTop: 8 }}>
                 Sur Open Food Facts · {enLigne.items.length} résultat{enLigne.items.length > 1 ? 's' : ''}
               </Sub>
+              {enLigne.msg ? <Sub style={{ textAlign: 'center', padding: 6, color: C.errText }}>{enLigne.msg}</Sub> : null}
               {enLigne.items.map((d) => (
-                <View key={d.code_barres!} style={[ui.ligne, { backgroundColor: 'transparent', minHeight: 60, gap: 10 }]}>
-                  <Vignette a={d} />
+                <View key={d.code} style={[ui.ligne, { backgroundColor: 'transparent', minHeight: 60, gap: 10 }]}>
+                  <Vignette
+                    a={{ nom: d.nom, source: 'off', image_url: d.image_url, proteines_100g: d.complet?.proteines_100g ?? 0,
+                      glucides_100g: d.complet?.glucides_100g ?? 0, lipides_100g: d.complet?.lipides_100g ?? 0 }}
+                  />
                   <Pressable accessibilityRole="button" onPress={() => depuisEnLigne(d, 'ouvrir')} style={{ flex: 1, gap: 1 }}>
-                    <T style={{ fontFamily: F.bodyBold }} numberOfLines={1}>{d.nom}</T>
+                    <T style={{ fontFamily: F.bodyBold }} numberOfLines={2}>{d.nom}</T>
                     {d.marque ? <Text style={{ fontFamily: F.bodyBold, fontSize: 11.5, color: C.ink2, textTransform: 'uppercase' }} numberOfLines={1}>{d.marque}</Text> : null}
-                    <Sub>{d.kcal_100g} kcal / 100 g</Sub>
+                    <Sub>{d.complet ? `${d.complet.kcal_100g} kcal / 100 g` : d.quantite ?? ''}</Sub>
                   </Pressable>
-                  <BoutonPlus label={`Ajouter ${d.nom}`} onPress={() => depuisEnLigne(d, 'ajouter')} />
+                  {ouvertureEnCours === d.code ? (
+                    <ActivityIndicator color={C.lav} style={{ width: 46 }} />
+                  ) : (
+                    <BoutonPlus label={`Ajouter ${d.nom}`} onPress={() => depuisEnLigne(d, 'ajouter')} />
+                  )}
                 </View>
               ))}
             </>
