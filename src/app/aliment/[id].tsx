@@ -4,14 +4,14 @@ import { produitParCode } from '../../lib/off';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
-  Anneau, Bouton, Carte, Ecran, IcCrayon, IcEtoile, IcRetour, Lab, Legende, Puce, Rond, Segment, Sub, Titre, fmt, lireNombre,
+  Anneau, Bouton, Carte, Ecran, IcBas, IcCrayon, IcEtoile, IcPoubelle, IcRetour, Lab, Legende, Puce, Rond, Segment, Sub, Titre, fmt, lireNombre,
 } from '../../components/ui';
 import {
   Aliment, Portion, ajouterEntree, ajouterPortion, basculerFavori, definirPortionFavorite, getAliment, getEntree, grammageRapide, macrosPour,
   definirImage, modifierEntree, portionsDe, supprimerPortion,
 } from '../../db/repo';
 import { useData, useJour } from '../../lib/hooks';
-import { C, F, MACRO, MACRO_KEYS, REPAS, RepasKey, auRepas, repasInfo, repasParDefaut } from '../../theme';
+import { C, F, MACRO, MACRO_KEYS, REPAS, RepasKey, auRepas, repasParDefaut, shadow } from '../../theme';
 
 type Unite = { cle: string; lib: string; g: number };
 /** Unités possibles pour compter en portions : tes grammages enregistrés (favori d'abord) puis la portion du produit. */
@@ -26,6 +26,8 @@ function unitesDe(a: Aliment, portions: Portion[]): Unite[] {
 const nomUnite = (u: Unite) => (/\d\s*(g|ml|cl)\b/i.test(u.lib) ? u.lib : `${u.lib} (${fmt(u.g)} g)`);
 /** Dans le champ : « × bouteille » (le détail en grammes est juste en dessous). */
 const courtUnite = (u: Unite) => u.lib.replace(/\s*\(.*\)\s*$/, '').replace(/^1\s+/, '').trim() || 'portion';
+/** Libellé dans le sélecteur : « bouteille (250 g) », « Mon bol (40 g) ». */
+const libUnite = (u: Unite) => `${courtUnite(u)} (${fmt(u.g)} g)`;
 const arrondi = (n: number) => Math.round(n * 100) / 100;
 
 const HAUT = 260; // hauteur de l'image d'en-tête
@@ -45,7 +47,7 @@ export default function FicheAliment() {
   const [pret, setPret] = useState(false);
   const [repas, setRepas] = useState<RepasKey>(p.repas ?? repasParDefaut());
   const [nouveau, setNouveau] = useState<string | null>(null);
-  const [menu, setMenu] = useState<string | null>(null);
+  const [deroule, setDeroule] = useState(false); // menu des unités ouvert
   const [photoKo, setPhotoKo] = useState(false); // photo qui ne charge pas (hors ligne…) : en-tête pastel
 
   // quantité de départ : celle de l'entrée modifiée, sinon le grammage favori / dernier
@@ -147,76 +149,88 @@ export default function FicheAliment() {
       </View>
 
       <View style={{ marginTop: -26, backgroundColor: C.bg, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 16, paddingTop: 20, gap: 12 }}>
-      <Carte style={{ gap: 12 }}>
-        <Lab>Quantité</Lab>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Rond
-            label={u ? 'Une portion de moins' : `Moins ${pas} g`}
-            fond={C.lavSoft}
-            taille={48}
-            onPress={() => (u ? setNb(String(n > 1 ? arrondi(n - 1) : 0.5)) : setQte(String(Math.max(0, g - pas))))}
+      {/* Quantité façon Foodvisor : [nombre | unité ▾], le menu liste toutes les unités */}
+      <Carte style={{ gap: 8, zIndex: 20 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'stretch', backgroundColor: C.soft, borderRadius: 999, minHeight: 54, borderWidth: 2, borderColor: deroule ? C.lav : '#E4DEFA' }}>
+          <TextInput
+            accessibilityLabel={u ? 'Nombre de portions' : 'Quantité en grammes'}
+            value={u ? nb : qte}
+            onChangeText={(t) => (u ? setNb : setQte)(t.replace(/[^0-9.,]/g, ''))}
+            keyboardType="decimal-pad"
+            selectTextOnFocus
+            style={{ width: 92, textAlign: 'center', fontFamily: F.display, fontSize: 22, color: C.ink, paddingVertical: 0, borderRightWidth: 2, borderRightColor: '#E4DEFA' }}
+          />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Unité : ${u ? libUnite(u) : 'grammes'}. Changer`}
+            onPress={() => setDeroule((d) => !d)}
+            style={{ flex: 1, flexDirection: 'row', alignItems: 'center', paddingLeft: 16, paddingRight: 14, gap: 8 }}
           >
-            <Text style={{ fontFamily: F.bodyBold, fontSize: 22, color: C.lavText }}>−</Text>
-          </Rond>
-          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: C.soft, borderRadius: 999, minHeight: 52, paddingHorizontal: 18, gap: 6 }}>
-            <TextInput
-              accessibilityLabel={u ? 'Nombre de portions' : 'Quantité en grammes'}
-              value={u ? nb : qte}
-              onChangeText={(t) => (u ? setNb : setQte)(t.replace(/[^0-9.,]/g, ''))}
-              keyboardType="decimal-pad"
-              selectTextOnFocus
-              style={{ flex: 1, minWidth: 40, fontFamily: F.display, fontSize: 26, color: C.ink, paddingVertical: 0 }}
-            />
-            <Text style={{ fontFamily: F.bodyBold, fontSize: 15, color: C.ink2, flexShrink: 1 }} numberOfLines={1}>
-              {u ? `× ${courtUnite(u)}` : 'g'}
+            <Text style={{ flex: 1, fontFamily: F.bodyBold, fontSize: 16, color: C.ink }} numberOfLines={1}>
+              {u ? libUnite(u) : 'g'}
             </Text>
-          </View>
-          <Rond
-            label={u ? 'Une portion de plus' : `Plus ${pas} g`}
-            fond={C.lavSoft}
-            taille={48}
-            onPress={() => (u ? setNb(String(n < 1 ? 1 : arrondi(n + 1))) : setQte(String(g + pas)))}
-          >
-            <Text style={{ fontFamily: F.bodyBold, fontSize: 22, color: C.lavText }}>+</Text>
-          </Rond>
-        </View>
-        {u ? (
-          <Sub style={{ textAlign: 'center', fontFamily: F.bodyBold, marginTop: -4 }}>
-            {fmt(n, 2)} × {nomUnite(u)} = {fmt(g, 1)} g
-          </Sub>
-        ) : null}
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-          <Puce titre="En grammes" actif={!u} onPress={() => choisirUnite(null)} />
-          {unites.map((x) => {
-            const perso = portions.find((pt) => pt.id === x.cle);
-            return (
-              <Puce
-                key={x.cle}
-                titre={`${perso?.favori ? '★ ' : ''}${nomUnite(x)}`}
-                actif={u?.cle === x.cle}
-                onPress={() => choisirUnite(x)}
-                onLongPress={perso ? () => setMenu(perso.id) : undefined}
-              />
-            );
-          })}
-          {nouveau === null ? (
-            <Pressable accessibilityRole="button" onPress={() => setNouveau('')} style={{ minHeight: 38, borderRadius: 999, paddingHorizontal: 14, justifyContent: 'center', borderWidth: 2, borderColor: C.lavSoft }}>
-              <Text style={{ fontFamily: F.bodyBold, fontSize: 13, color: C.lavText }}>+ Enregistrer ce grammage</Text>
-            </Pressable>
-          ) : null}
-        </View>
-        {menu ? (() => {
-          const pt = portions.find((x) => x.id === menu);
-          if (!pt) return null;
-          return (
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center', backgroundColor: C.soft, borderRadius: 20, padding: 8 }}>
-              <Sub style={{ fontFamily: F.bodyBold, paddingHorizontal: 6 }}>{pt.libelle} :</Sub>
-              <Puce titre={pt.favori ? 'Retirer le favori' : '★ Mettre en favori'} onPress={() => { definirPortionFavorite(a.id, pt.favori ? null : pt.id); setMenu(null); }} />
-              <Puce titre="Supprimer" onPress={() => { supprimerPortion(pt.id); setMenu(null); }} />
-              <Puce titre="Fermer" onPress={() => setMenu(null)} />
+            <View style={{ transform: [{ rotate: deroule ? '180deg' : '0deg' }] }}>
+              <IcBas couleur={C.ink2} taille={20} epais={2.4} />
             </View>
-          );
-        })() : null}
+          </Pressable>
+        </View>
+        {u && n !== 1 ? <Sub style={{ paddingLeft: 20, marginTop: -2 }}>Soit {fmt(g, 1)} g</Sub> : null}
+
+        {deroule ? (
+          <View
+            style={{
+              position: 'absolute', left: 16, right: 16, top: 74, backgroundColor: '#fff', borderRadius: 18, paddingVertical: 6,
+              borderWidth: 1, borderColor: '#ECE8F7', ...shadow,
+            }}
+          >
+            {[null, ...unites].map((x) => {
+              const perso = x ? portions.find((pt) => pt.id === x.cle) : undefined;
+              const actif = (u?.cle ?? null) === (x?.cle ?? null);
+              return (
+                <View key={x?.cle ?? 'g'} style={{ flexDirection: 'row', alignItems: 'center', minHeight: 48, paddingLeft: 16, paddingRight: 6, backgroundColor: actif ? C.lavSoft : 'transparent' }}>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => {
+                      choisirUnite(x);
+                      setDeroule(false);
+                    }}
+                    style={{ flex: 1, minHeight: 48, justifyContent: 'center' }}
+                  >
+                    <Text style={{ fontFamily: actif ? F.bodyBold : F.body, fontSize: 16, color: C.ink }} numberOfLines={1}>
+                      {x ? libUnite(x) : 'g'}
+                    </Text>
+                  </Pressable>
+                  {perso ? (
+                    <>
+                      <Rond
+                        label={perso.favori ? `Retirer ${perso.libelle} des favoris` : `${perso.libelle} par défaut pour le +`}
+                        fond="transparent"
+                        taille={40}
+                        onPress={() => definirPortionFavorite(a.id, perso.favori ? null : perso.id)}
+                      >
+                        <IcEtoile couleur={perso.favori ? C.peachText : '#C9C3DC'} taille={18} epais={2.2} />
+                      </Rond>
+                      <Rond label={`Supprimer ${perso.libelle}`} fond="transparent" taille={40} onPress={() => supprimerPortion(perso.id)}>
+                        <IcPoubelle couleur="#B7B0CC" taille={17} />
+                      </Rond>
+                    </>
+                  ) : null}
+                </View>
+              );
+            })}
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                setDeroule(false);
+                setNouveau('');
+              }}
+              style={{ minHeight: 48, justifyContent: 'center', paddingHorizontal: 16, borderTopWidth: 1, borderTopColor: '#F0EDFA', marginTop: 4 }}
+            >
+              <Text style={{ fontFamily: F.bodyBold, fontSize: 14.5, color: C.lavText }}>+ Enregistrer {fmt(g, 1)} g comme grammage</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
         {nouveau !== null ? (
           <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
             <TextInput
@@ -229,10 +243,11 @@ export default function FicheAliment() {
               style={{ flex: 1, backgroundColor: C.soft, borderRadius: 999, minHeight: 44, paddingHorizontal: 14, fontFamily: F.body, color: C.ink }}
             />
             <Bouton petit titre="OK" onPress={enregistrerGrammage} />
+            <Rond label="Annuler" fond="transparent" taille={40} onPress={() => setNouveau(null)}>
+              <Text style={{ fontFamily: F.bodyBold, fontSize: 18, color: C.ink2 }}>×</Text>
+            </Rond>
           </View>
-        ) : (
-          <Sub style={{ fontSize: 12 }}>Touche une portion pour en compter plusieurs (2 bouteilles…). Appui long sur un grammage enregistré pour le mettre en favori : le « + » rapide l’utilisera.</Sub>
-        )}
+        ) : null}
       </Carte>
 
       <Carte>
