@@ -336,11 +336,11 @@ export function Legende({ t, kcalPct = true }: { t: Totaux; kcalPct?: boolean })
 }
 
 // ---------- Icônes (traits simples) ----------
-type IcProps = { taille?: number; couleur?: string; epais?: number };
+type IcProps = { taille?: number; couleur?: string; epais?: number; plein?: string };
 const ic = (d: string) =>
-  function Icone({ taille = 20, couleur = C.ink, epais = 2.4 }: IcProps) {
+  function Icone({ taille = 20, couleur = C.ink, epais = 2.4, plein }: IcProps) {
     return (
-      <Svg width={taille} height={taille} viewBox="0 0 24 24" fill="none" stroke={couleur} strokeWidth={epais} strokeLinecap="round" strokeLinejoin="round">
+      <Svg width={taille} height={taille} viewBox="0 0 24 24" fill={plein ?? 'none'} stroke={couleur} strokeWidth={epais} strokeLinecap="round" strokeLinejoin="round">
         <Path d={d} />
       </Svg>
     );
@@ -352,6 +352,11 @@ export const IcCode = ic('M4 8V5h3M20 8V5h-3M4 16v3h3M20 16v3h-3M8 9v6M11 9v6M14
 export const IcLoupe = ic('M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13zM16 16l4 4');
 export const IcEclair = ic('M13 3L5 14h6l-1 7 8-11h-6z');
 export const IcEtoile = ic('M12 4l2.5 5 5.5.8-4 3.9.9 5.5L12 16.6 7.1 19.2l.9-5.5-4-3.9 5.5-.8z');
+/** Étoile de favori : jaune pleine si favori, blanche (contour gris) sinon. */
+export const JAUNE = '#F7C948';
+export function EtoileFavori({ actif, taille = 20 }: { actif: boolean; taille?: number }) {
+  return <IcEtoile taille={taille} epais={2} couleur={actif ? '#DFA514' : '#B7B0CC'} plein={actif ? JAUNE : '#fff'} />;
+}
 export const IcBas = ic('M6 9l6 6 6-6');
 export const IcJournal = ic('M8 4h8a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3zM9 9h6M9 13h6M9 17h3');
 export const IcProgres = ic('M5 19V11M12 19V5M19 19v-6');

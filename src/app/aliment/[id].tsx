@@ -4,7 +4,7 @@ import { produitParCode } from '../../lib/off';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
-  Anneau, Bouton, Carte, Ecran, IcBas, IcCrayon, IcEtoile, IcPoubelle, IcRetour, Lab, Legende, Puce, Rond, Segment, Sub, Titre, fmt, lireNombre,
+  Anneau, Bouton, Carte, Ecran, EtoileFavori, IcBas, IcCrayon, IcPoubelle, IcRetour, Lab, Legende, Puce, Rond, Segment, Sub, Titre, fmt, lireNombre,
 } from '../../components/ui';
 import {
   Aliment, Portion, ajouterEntree, ajouterPortion, basculerFavori, definirPortionFavorite, getAliment, getEntree, grammageRapide, macrosPour,
@@ -128,8 +128,8 @@ export default function FicheAliment() {
               <IcCrayon couleur={C.lavText} taille={19} />
             </Rond>
           ) : null}
-          <Rond label={a.favori ? 'Retirer des favoris' : 'Ajouter aux favoris'} fond={a.favori ? C.peachSoft : '#fff'} onPress={() => basculerFavori(a)}>
-            <IcEtoile couleur={C.peachText} taille={20} epais={2.2} />
+          <Rond label={a.favori ? 'Retirer des favoris' : 'Ajouter aux favoris'} fond="#fff" onPress={() => basculerFavori(a)}>
+            <EtoileFavori actif={!!a.favori} taille={22} />
           </Rond>
         </View>
         <View style={{ gap: 2, paddingRight: surPhoto ? 0 : 110 }}>
@@ -208,7 +208,7 @@ export default function FicheAliment() {
                         taille={40}
                         onPress={() => definirPortionFavorite(a.id, perso.favori ? null : perso.id)}
                       >
-                        <IcEtoile couleur={perso.favori ? C.peachText : '#C9C3DC'} taille={18} epais={2.2} />
+                        <EtoileFavori actif={!!perso.favori} taille={20} />
                       </Rond>
                       <Rond label={`Supprimer ${perso.libelle}`} fond="transparent" taille={40} onPress={() => supprimerPortion(perso.id)}>
                         <IcPoubelle couleur="#B7B0CC" taille={17} />
