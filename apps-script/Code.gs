@@ -31,9 +31,12 @@ const HEADERS = {
     'fibres', 'cree_le', 'modifie_le', 'supprime'],
   objectifs: ['id', 'date_debut', 'kcal', 'proteines_g', 'glucides_g', 'lipides_g', 'fibres_g', 'unite_repas',
     'obj_petit_dej', 'obj_dejeuner', 'obj_diner', 'obj_collation', 'modifie_le', 'supprime'],
+  repas_favoris: ['id', 'nom', 'repas', 'cree_le', 'modifie_le', 'supprime'],
+  repas_favoris_items: ['id', 'repas_favori_id', 'aliment_id', 'libelle', 'quantite_g', 'kcal', 'proteines', 'glucides',
+    'lipides', 'fibres', 'ordre', 'modifie_le', 'supprime'],
 };
 // Colonnes gardées en texte (sinon Sheets transforme les dates et mange les zéros des codes-barres).
-const TEXTE = ['id', 'date', 'date_debut', 'code_barres', 'aliment_id', 'cree_le', 'modifie_le', 'repas', 'unite_repas', 'source'];
+const TEXTE = ['id', 'date', 'date_debut', 'code_barres', 'aliment_id', 'cree_le', 'modifie_le', 'repas', 'unite_repas', 'source', 'repas_favori_id'];
 
 function json_(o) {
   return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
@@ -88,7 +91,8 @@ function doPost(e) {
     (body.changes || []).forEach(function (c) { (parTable[c.table] = parTable[c.table] || []).push(c.row); });
     let n = 0;
     Object.keys(parTable).forEach(function (t) { n += upsert_(ss, t, parTable[t]); });
-    return json_({ ok: true, applied: n });
+    // `tables` : l'app sait ainsi quels onglets ce script connaît (sinon elle garde ces lignes en attente).
+    return json_({ ok: true, applied: n, tables: Object.keys(HEADERS) });
   } finally {
     lock.releaseLock();
   }

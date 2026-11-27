@@ -33,6 +33,12 @@ export const SYNC_COLUMNS = {
     'id', 'date_debut', 'kcal', 'proteines_g', 'glucides_g', 'lipides_g', 'fibres_g', 'unite_repas',
     'obj_petit_dej', 'obj_dejeuner', 'obj_diner', 'obj_collation', 'modifie_le', 'supprime',
   ],
+  // Repas favoris : un nom + des aliments avec leur quantité (valeurs figées au moment de l'enregistrement)
+  repas_favoris: ['id', 'nom', 'repas', 'cree_le', 'modifie_le', 'supprime'],
+  repas_favoris_items: [
+    'id', 'repas_favori_id', 'aliment_id', 'libelle', 'quantite_g', 'kcal', 'proteines', 'glucides', 'lipides',
+    'fibres', 'ordre', 'modifie_le', 'supprime',
+  ],
 } as const;
 export type SyncTable = keyof typeof SYNC_COLUMNS;
 
@@ -124,6 +130,35 @@ const MIGRATIONS: string[] = [
   // v4 : photo du produit (Open Food Facts) ; '' = vérifié, pas de photo
   `
   ALTER TABLE aliments ADD COLUMN image_url TEXT;
+  `,
+  // v5 : repas favoris (plusieurs aliments ajoutés d'un coup)
+  `
+  CREATE TABLE IF NOT EXISTS repas_favoris (
+    id TEXT PRIMARY KEY NOT NULL,
+    nom TEXT NOT NULL,
+    repas TEXT,
+    utilise_le TEXT,
+    cree_le TEXT,
+    modifie_le TEXT,
+    supprime INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE TABLE IF NOT EXISTS repas_favoris_items (
+    id TEXT PRIMARY KEY NOT NULL,
+    repas_favori_id TEXT NOT NULL,
+    aliment_id TEXT,
+    libelle TEXT NOT NULL,
+    quantite_g REAL,
+    kcal REAL NOT NULL DEFAULT 0,
+    proteines REAL NOT NULL DEFAULT 0,
+    glucides REAL NOT NULL DEFAULT 0,
+    lipides REAL NOT NULL DEFAULT 0,
+    fibres REAL NOT NULL DEFAULT 0,
+    ordre INTEGER NOT NULL DEFAULT 0,
+    modifie_le TEXT,
+    supprime INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX IF NOT EXISTS idx_rfi_parent ON repas_favoris_items(repas_favori_id);
+  CREATE INDEX IF NOT EXISTS idx_entrees_repas ON entrees(repas, date);
   `,
 ];
 

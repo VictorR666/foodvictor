@@ -4,8 +4,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { BlocAjout } from '../../components/BlocAjout';
 import { CerclesMacros } from '../../components/CerclesMacros';
 import { Vignette } from '../../components/Visuel';
-import { Carte, Ecran, IcBas, IcPoubelle, Progression, Rond, Segment, Sub, T, fmt } from '../../components/ui';
-import { Entree, ZERO, ciblesRepas, entreesDuJour, getObjectifs, restaurerEntree, somme, supprimerEntree } from '../../db/repo';
+import { Bouton, Carte, Champ, Ecran, IcBas, IcEtoile, IcPoubelle, Progression, Rond, Segment, Sub, T, fmt } from '../../components/ui';
+import { Entree, ZERO, ciblesRepas, creerRepasFavori, entreesDuJour, getObjectifs, restaurerEntree, somme, supprimerEntree } from '../../db/repo';
 import { libelleJour, titreJour } from '../../lib/date';
 import { useData, useJour } from '../../lib/hooks';
 import { C, F, MACRO, REPAS, RepasKey, repasInfo, repasParDefaut, shadow } from '../../theme';
@@ -26,6 +26,9 @@ export default function Repas() {
     return { es: es.filter((e) => e.repas === repas), cibles: ciblesRepas(obj, repas) };
   }, [jour, repas]);
   const [supprimee, setSupprimee] = useState<Entree | null>(null);
+  // Enregistrer le repas en favori : nom proposé à partir des aliments, modifiable.
+  const [nomFavori, setNomFavori] = useState<string | null>(null);
+  const [favoriOk, setFavoriOk] = useState<string | null>(null);
 
   const es = data?.es ?? [];
   const cibles = data?.cibles ?? ZERO;
@@ -116,6 +119,43 @@ export default function Repas() {
                 </Rond>
               </View>
             ))}
+            {nomFavori === null ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  setFavoriOk(null);
+                  const noms = [...new Set(es.map((e) => e.libelle.split(',')[0]))];
+                  setNomFavori(noms.slice(0, 2).join(' + ') + (noms.length > 2 ? '…' : ''));
+                }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', minHeight: 40, paddingHorizontal: 4 }}
+              >
+                <IcEtoile couleur={favoriOk ? C.okText : C.peachText} taille={17} epais={2.2} />
+                <Text style={{ fontFamily: F.bodyBold, fontSize: 13.5, color: favoriOk ? C.okText : C.peachText }}>
+                  {favoriOk ? `« ${favoriOk} » enregistré en repas favori` : 'Enregistrer en repas favori'}
+                </Text>
+              </Pressable>
+            ) : (
+              <View style={{ gap: 8, paddingTop: 6, paddingHorizontal: 4 }}>
+                <Champ label="Nom du repas favori" accessibilityLabel="Nom du repas favori" value={nomFavori} onChangeText={setNomFavori} autoFocus selectTextOnFocus maxLength={60} />
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <Bouton variante="doux" titre="Annuler" petit style={{ flex: 1 }} onPress={() => setNomFavori(null)} />
+                  <Bouton
+                    titre="Enregistrer"
+                    petit
+                    style={{ flex: 1 }}
+                    disabled={!nomFavori.trim()}
+                    onPress={async () => {
+                      await creerRepasFavori(nomFavori, repas, es);
+                      setFavoriOk(nomFavori.trim());
+                      setNomFavori(null);
+                    }}
+                  />
+                </View>
+                <Sub style={{ fontSize: 12 }}>
+                  Les {es.length} aliments et leurs quantités. Tu le retrouveras dans « Habituels » et « Favoris » pour tout ajouter d’un « + ».
+                </Sub>
+              </View>
+            )}
           </Carte>
         ) : null}
 

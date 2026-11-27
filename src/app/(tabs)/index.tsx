@@ -9,7 +9,7 @@ import { LETTRE_JOUR, isoDate, parseIso, semaine, titreJour, libelleJour, addDay
 import { setJour, useData, useJour } from '../../lib/hooks';
 import { surEtatSync, EtatSync } from '../../lib/sync';
 import { useEffect, useState } from 'react';
-import { C, F, MACRO, MACRO_KEYS, REPAS, RepasKey, repasInfo, shadow } from '../../theme';
+import { C, F, MACRO, MACRO_KEYS, REPAS, RepasKey, auRepas, duRepas, repasInfo, shadow } from '../../theme';
 
 export default function Journal() {
   const jour = useJour();
@@ -152,13 +152,13 @@ function CarteRepas({
             </Text>
           </View>
         </Pressable>
-        <Rond label={ouvert ? `Masquer les macros du ${r.nom.toLowerCase()}` : `Voir les macros du ${r.nom.toLowerCase()}`} fond="transparent" onPress={basculer} taille={40}>
+        <Rond label={ouvert ? `Masquer les macros ${duRepas(r.key)}` : `Voir les macros ${duRepas(r.key)}`} fond="transparent" onPress={basculer} taille={40}>
           <View style={{ transform: [{ rotate: ouvert ? '180deg' : '0deg' }] }}>
             <IcBas couleur={C.ink2} taille={20} epais={2.6} />
           </View>
         </Rond>
         <Rond
-          label={`Ajouter au ${r.nom.toLowerCase()}`}
+          label={`Ajouter ${auRepas(r.key)}`}
           fond={C.ink}
           onPress={ouvrir}
           style={{ ...shadow, shadowColor: C.ink, shadowOpacity: 0.25 }}
@@ -167,7 +167,7 @@ function CarteRepas({
         </Rond>
       </View>
       {es.length ? (
-        <Pressable onPress={ouvrir} accessibilityRole="button" accessibilityLabel={`Aliments du ${r.nom.toLowerCase()}`}>
+        <Pressable onPress={ouvrir} accessibilityRole="button" accessibilityLabel={`Aliments ${duRepas(r.key)}`}>
           <Text numberOfLines={2} style={{ fontFamily: F.body, fontSize: 13.5, color: C.ink }}>
             {regrouper(es)}
           </Text>

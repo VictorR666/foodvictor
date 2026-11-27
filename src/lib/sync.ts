@@ -16,6 +16,8 @@ export type EtatSync = {
   derniere: string | null;
   enAttente: number;
   message?: string;
+  /** Le script Google est d'une version d'avant les repas favoris (à mettre à jour). */
+  scriptAncien?: boolean;
 };
 
 let etat: EtatSync = { etat: 'non_configure', derniere: null, enAttente: 0 };
@@ -48,6 +50,7 @@ export async function rafraichirEtat() {
 }
 
 let enCours: Promise<void> | null = null;
+let scriptAncien = false;
 
 export function synchroniser(): Promise<void> {
   if (!enCours) enCours = executer().finally(() => (enCours = null));
@@ -78,11 +81,17 @@ async function executer() {
         await marquerEchec(file);
         throw new Error(json?.error === 'secret' ? 'Clé secrète refusée par le script.' : `Le script a répondu ${res.status}.`);
       }
-      await retirerDeLaFile(file);
+      // Un script Google d'avant les repas favoris ignore ces onglets : on garde ces lignes en attente
+      // jusqu'à ce que le script soit mis à jour (il renvoie alors la liste des onglets qu'il connaît).
+      const connues: string[] = Array.isArray(json.tables) ? json.tables : ['aliments', 'portions', 'entrees', 'objectifs'];
+      const ignorees = file.filter((f) => !connues.includes(f.tbl));
+      await retirerDeLaFile(file.filter((f) => connues.includes(f.tbl)));
+      scriptAncien = ignorees.length > 0;
+      if (scriptAncien) break;
     }
     const t = now();
     await setReglage('sheets_derniere_sync', t);
-    publier({ etat: 'ok', derniere: t, enAttente: await nbEnAttente(), message: undefined });
+    publier({ etat: 'ok', derniere: t, enAttente: await nbEnAttente(), message: undefined, scriptAncien });
   } catch (e) {
     publier({
       etat: 'erreur',

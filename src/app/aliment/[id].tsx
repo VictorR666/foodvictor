@@ -11,7 +11,7 @@ import {
   definirImage, modifierEntree, portionsDe, supprimerPortion,
 } from '../../db/repo';
 import { useData, useJour } from '../../lib/hooks';
-import { C, F, MACRO, MACRO_KEYS, REPAS, RepasKey, repasInfo, repasParDefaut } from '../../theme';
+import { C, F, MACRO, MACRO_KEYS, REPAS, RepasKey, auRepas, repasInfo, repasParDefaut } from '../../theme';
 
 type Unite = { cle: string; lib: string; g: number };
 /** Unités possibles pour compter en portions : tes grammages enregistrés (favori d'abord) puis la portion du produit. */
@@ -267,7 +267,7 @@ export default function FicheAliment() {
     {/* Bouton toujours visible en bas, comme sur Foodvisor */}
     <View style={{ position: 'absolute', left: 16, right: 16, bottom: 14 }}>
       <Bouton
-        titre={data?.e ? 'Enregistrer la modification' : `Ajouter au ${repasInfo(repas).nom.toLowerCase()} · ${fmt(m.kcal)} kcal`}
+        titre={data?.e ? 'Enregistrer la modification' : `Ajouter ${auRepas(repas)} · ${fmt(m.kcal)} kcal`}
         onPress={valider}
         disabled={g <= 0}
       />

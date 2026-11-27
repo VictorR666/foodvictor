@@ -3,17 +3,19 @@ import { ActivityIndicator, Platform, Pressable, ScrollView, Text, TextInput, Vi
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  Bouton, IcCheck, IcCode, IcEclair, IcEtoile, IcLoupe, IcPlus, Sub, T, fmt, s as ui,
+  Bouton, IcCheck, IcCode, IcEclair, IcEtoile, IcLoupe, IcPlus, IcRepas, Sub, T, fmt, s as ui,
 } from './ui';
+import { confirmer } from '../lib/dialogue';
 import {
-  Aliment, ajouterEntree, alimentParCode, enregistrerProduitOFF, favoris, grammageRapide, macrosPour, mesAliments, recents, rechercheLocale,
+  Aliment, AlimentHabituel, RepasFavori, ajouterEntree, ajouterRepasFavori, alimentParCode, enregistrerProduitOFF, favoris,
+  grammageRapide, habituelsDuRepas, macrosPour, mesAliments, recents, rechercheLocale, repasFavoris, supprimerRepasFavori,
 } from '../db/repo';
 import { useData } from '../lib/hooks';
 import { Vignette } from './Visuel';
 import { ResultatEnLigne, produitParCode, rechercheEnLigne } from '../lib/off';
-import { C, F, RepasKey } from '../theme';
+import { C, F, RepasKey, auRepas, repasInfo } from '../theme';
 
-type Onglet = 'recents' | 'favoris' | 'perso';
+type Onglet = 'habituels' | 'recents' | 'favoris' | 'perso';
 // Navigateur : pas de cadre noir autour du champ quand il a le focus (le contour lavande suffit).
 const sansContour = Platform.OS === 'web' ? ({ outlineWidth: 0, outlineStyle: 'none', borderWidth: 0 } as object) : {};
 const PREMIERS = 8; // résultats montrés avant « Voir plus »
@@ -32,15 +34,32 @@ const familleDe = (a: Aliment) => {
  */
 export function BlocAjout({ repas, jour }: { repas: RepasKey; jour: string }) {
   const [q, setQ] = useState('');
-  const [onglet, setOnglet] = useState<Onglet>('recents');
+  const [onglet, setOnglet] = useState<Onglet>('habituels');
+  const choixManuel = useRef(false); // l'onglet par défaut peut basculer sur « Récents » tant que tu n'as rien touché
   const [enLigne, setEnLigne] = useState<{ etat: 'rien' | 'charge' | 'ok' | 'erreur'; items: ResultatEnLigne[]; msg?: string }>({ etat: 'rien', items: [] });
 
   const [liste] = useData(async () => {
     if (q.trim().length >= 2) return rechercheLocale(q);
+    if (onglet === 'habituels') return habituelsDuRepas(repas);
     if (onglet === 'favoris') return favoris();
     if (onglet === 'perso') return mesAliments();
     return recents();
-  }, [q, onglet]);
+  }, [q, onglet, repas]);
+  const [rfs] = useData(repasFavoris, []);
+  const rfsDuRepas = (rfs ?? []).filter((r) => r.repas === repas);
+  // Rien d'habituel pour ce repas (début d'utilisation) : on montre les récents.
+  useEffect(() => {
+    if (!choixManuel.current && onglet === 'habituels' && liste && !liste.length && rfs && !rfsDuRepas.length && !q) setOnglet('recents');
+  }, [liste, rfs, onglet, q]);
+  const ajouterRf = async (rf: RepasFavori) => {
+    await ajouterRepasFavori(rf, jour, repas);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+  };
+  const supprimerRf = async (rf: RepasFavori) => {
+    if (await confirmer('Supprimer ce repas favori ?', `« ${rf.nom} » ne sera plus proposé. Les repas déjà notés ne changent pas.`)) {
+      await supprimerRepasFavori(rf.id);
+    }
+  };
 
   // Filtre par famille (Fruits, Légumes…) et nombre de résultats affichés : remis à zéro à chaque recherche.
   const [famille, setFamille] = useState<string | null>(null);
@@ -56,8 +75,8 @@ export function BlocAjout({ repas, jour }: { repas: RepasKey; jour: string }) {
   }, [liste]);
 
   const ouvrir = (a: Aliment) => router.push({ pathname: '/aliment/[id]', params: { id: a.id, repas } });
-  const ajouterVite = async (a: Aliment) => {
-    const { g } = await grammageRapide(a);
+  const ajouterVite = async (a: Aliment, grammes?: number | null) => {
+    const g = grammes || (await grammageRapide(a)).g;
     await ajouterEntree(jour, repas, a, g);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
   };
@@ -151,6 +170,7 @@ export function BlocAjout({ repas, jour }: { repas: RepasKey; jour: string }) {
         {!recherche ? (
           <View style={{ flexDirection: 'row', marginBottom: 2 }} accessibilityRole="tablist">
             {([
+              ['habituels', 'Habituels'],
               ['recents', 'Récents'],
               ['favoris', 'Favoris'],
               ['perso', 'Mes aliments'],
@@ -159,10 +179,13 @@ export function BlocAjout({ repas, jour }: { repas: RepasKey; jour: string }) {
                 key={k}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: onglet === k }}
-                onPress={() => setOnglet(k)}
+                onPress={() => {
+                  choixManuel.current = true;
+                  setOnglet(k);
+                }}
                 style={{ flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderBottomWidth: 3, borderBottomColor: onglet === k ? C.lavText : 'transparent' }}
               >
-                <Text style={{ fontFamily: F.bodyBold, fontSize: 14, color: onglet === k ? C.lavText : C.ink2 }}>{t}</Text>
+                <Text numberOfLines={1} style={{ fontFamily: F.bodyBold, fontSize: 13.5, color: onglet === k ? C.lavText : C.ink2 }}>{t}</Text>
               </Pressable>
             ))}
           </View>
@@ -195,6 +218,21 @@ export function BlocAjout({ repas, jour }: { repas: RepasKey; jour: string }) {
           </ScrollView>
         ) : null}
 
+        {/* Repas favoris : ceux de ce repas dans « Habituels », tous dans « Favoris » */}
+        {!recherche && (onglet === 'habituels' || onglet === 'favoris') ? (() => {
+          const rl = onglet === 'habituels' ? rfsDuRepas : rfs ?? [];
+          if (!rl.length) return null;
+          return (
+            <>
+              <Titrette>{onglet === 'habituels' ? 'Tes repas favoris' : 'Repas'}</Titrette>
+              {rl.map((rf) => (
+                <LigneRepasFavori key={rf.id} rf={rf} onAjouter={() => ajouterRf(rf)} onSupprimer={() => supprimerRf(rf)} />
+              ))}
+              <Titrette>{onglet === 'habituels' ? `Souvent ${auRepas(repas)}` : 'Aliments'}</Titrette>
+            </>
+          );
+        })() : null}
+
         {(() => {
           const filtres = recherche && famille ? (liste ?? []).filter((a) => familleDe(a) === famille) : liste ?? [];
           const visibles = recherche ? filtres.slice(0, montres) : filtres;
@@ -202,7 +240,13 @@ export function BlocAjout({ repas, jour }: { repas: RepasKey; jour: string }) {
           return (
             <>
               {visibles.map((a) => (
-                <LigneAliment key={a.id} a={a} onOuvrir={() => ouvrir(a)} onAjouter={() => ajouterVite(a)} />
+                <LigneAliment
+                  key={a.id}
+                  a={a}
+                  grammes={!recherche && onglet === 'habituels' ? (a as AlimentHabituel).g_repas : null}
+                  onOuvrir={() => ouvrir(a)}
+                  onAjouter={() => ajouterVite(a, !recherche && onglet === 'habituels' ? (a as AlimentHabituel).g_repas : null)}
+                />
               ))}
               {reste > 0 ? (
                 <Pressable accessibilityRole="button" onPress={() => setMontres((m) => m + 20)} style={{ minHeight: 44, alignItems: 'center', justifyContent: 'center' }}>
@@ -217,10 +261,14 @@ export function BlocAjout({ repas, jour }: { repas: RepasKey; jour: string }) {
 
         {!recherche && !liste?.length ? (
           <Sub style={{ textAlign: 'center', padding: 14 }}>
-            {onglet === 'recents'
+            {onglet === 'habituels'
+              ? `Ce que tu manges souvent ${auRepas(repas)} apparaîtra ici.`
+              : onglet === 'recents'
               ? 'Les aliments que tu ajoutes apparaîtront ici. Commence par scanner un produit.'
               : onglet === 'favoris'
-                ? 'Touche l’étoile sur la fiche d’un aliment pour le mettre en favori.'
+                ? rfs?.length
+                  ? 'Touche l’étoile sur la fiche d’un aliment pour l’ajouter ici.'
+                  : 'Touche l’étoile sur la fiche d’un aliment, ou enregistre un repas entier (« Enregistrer en repas favori », plus haut) pour le retrouver ici.'
                 : 'Tes aliments créés à la main apparaîtront ici.'}
           </Sub>
         ) : null}
@@ -291,9 +339,54 @@ function BoutonPlus({ label, onPress }: { label: string; onPress: () => Promise<
   );
 }
 
-function LigneAliment({ a, onOuvrir, onAjouter }: { a: Aliment; onOuvrir: () => void; onAjouter: () => Promise<void> }) {
+function Titrette({ children }: { children: React.ReactNode }) {
+  return <Sub style={{ fontFamily: F.bodyBold, fontSize: 12.5, paddingHorizontal: 8, paddingTop: 10, paddingBottom: 2 }}>{children}</Sub>;
+}
+
+/** Un repas favori : touche pour voir le détail, « + » ajoute tous ses aliments d'un coup. */
+function LigneRepasFavori({ rf, onAjouter, onSupprimer }: { rf: RepasFavori; onAjouter: () => Promise<void>; onSupprimer: () => void }) {
+  const [ouvert, setOuvert] = useState(false);
+  const r = rf.repas ? repasInfo(rf.repas) : null;
+  const Icone = IcRepas[rf.repas ?? 'dejeuner'];
+  return (
+    <View style={{ paddingVertical: 8, paddingLeft: 6, paddingRight: 4, borderBottomWidth: 1, borderBottomColor: '#F0EDFA', gap: 6 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: r?.bg ?? C.lavSoft, alignItems: 'center', justifyContent: 'center' }}>
+          <Icone couleur={r?.fg ?? C.lavText} taille={22} epais={2.2} />
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${ouvert ? 'Masquer' : 'Voir'} le détail de ${rf.nom}`}
+          onPress={() => setOuvert((o) => !o)}
+          style={{ flex: 1, gap: 1, minHeight: 44, justifyContent: 'center' }}
+        >
+          <T style={{ fontFamily: F.bodyBold, fontSize: 15.5 }} numberOfLines={1}>★ {rf.nom}</T>
+          <Sub numberOfLines={ouvert ? undefined : 1}>
+            {fmt(rf.t.kcal)} kcal · {rf.items.length} aliment{rf.items.length > 1 ? 's' : ''}
+            {ouvert ? '' : ` : ${rf.items.map((i) => i.libelle).join(', ')}`}
+          </Sub>
+        </Pressable>
+        <BoutonPlus label={`Ajouter le repas ${rf.nom}`} onPress={onAjouter} />
+      </View>
+      {ouvert ? (
+        <View style={{ paddingLeft: 56, gap: 4 }}>
+          {rf.items.map((i) => (
+            <Text key={i.id} style={{ fontFamily: F.body, fontSize: 13.5, color: C.ink }} numberOfLines={1}>
+              {i.libelle} <Text style={{ color: C.ink2 }}>· {i.quantite_g ? `${fmt(i.quantite_g, 1)} g · ` : ''}{fmt(i.kcal)} kcal</Text>
+            </Text>
+          ))}
+          <Pressable accessibilityRole="button" onPress={onSupprimer} style={{ alignSelf: 'flex-start', minHeight: 36, justifyContent: 'center' }}>
+            <Text style={{ fontFamily: F.bodyBold, fontSize: 13, color: C.errText }}>Supprimer ce repas favori</Text>
+          </Pressable>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function LigneAliment({ a, grammes, onOuvrir, onAjouter }: { a: Aliment; grammes?: number | null; onOuvrir: () => void; onAjouter: () => Promise<void> }) {
   const [rapide] = useData(() => grammageRapide(a), [a.id, a.dernier_g]);
-  const g = rapide?.g ?? 100;
+  const g = grammes || rapide?.g || 100;
   const kcal = macrosPour(a, g).kcal;
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, paddingLeft: 6, paddingRight: 4, borderBottomWidth: 1, borderBottomColor: '#F0EDFA' }}>
@@ -306,7 +399,7 @@ function LigneAliment({ a, onOuvrir, onAjouter }: { a: Aliment; onOuvrir: () => 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: a.source === 'off' ? '#8ED3C4' : a.source === 'ciqual' ? '#F3C77A' : C.lav }} />
           <Sub numberOfLines={1} style={{ flex: 1 }}>
-            {fmt(kcal)} kcal, {rapide?.libelle.startsWith('★') ? `${rapide.libelle} (${fmt(g, 1)} g)` : `${fmt(g, 1)} g`}
+            {fmt(kcal)} kcal, {!grammes && rapide?.libelle.startsWith('★') ? `${rapide.libelle} (${fmt(g, 1)} g)` : `${fmt(g, 1)} g`}
           </Sub>
         </View>
       </Pressable>

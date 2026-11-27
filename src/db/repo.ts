@@ -450,6 +450,91 @@ export async function totauxParJour(depuis: string) {
   );
 }
 
+// ---------- Aliments habituels d'un repas ----------
+export type AlimentHabituel = Aliment & { jours: number; g_repas: number | null };
+
+/**
+ * Ce que tu manges le plus souvent à ce repas (90 derniers jours) : nombre de jours où il apparaît,
+ * et la dernière quantité prise à ce repas (le « + » l'utilise).
+ */
+export async function habituelsDuRepas(repas: RepasKey, limit = 12) {
+  const depuis = isoDate(new Date(Date.now() - 90 * 86_400_000));
+  return db.getAllAsync<AlimentHabituel>(
+    `SELECT a.*, COUNT(DISTINCT e.date) AS jours,
+       (SELECT e2.quantite_g FROM entrees e2 WHERE e2.aliment_id = a.id AND e2.repas = ? AND e2.supprime = 0
+        ORDER BY e2.cree_le DESC LIMIT 1) AS g_repas
+     FROM entrees e JOIN aliments a ON a.id = e.aliment_id
+     WHERE e.repas = ? AND e.supprime = 0 AND a.supprime = 0 AND e.date >= ?
+     GROUP BY a.id
+     ORDER BY jours DESC, MAX(e.cree_le) DESC
+     LIMIT ?`,
+    repas, repas, depuis, limit,
+  );
+}
+
+// ---------- Repas favoris ----------
+export type RepasFavoriItem = {
+  id: string; repas_favori_id: string; aliment_id: string | null; libelle: string; quantite_g: number | null;
+  kcal: number; proteines: number; glucides: number; lipides: number; fibres: number; ordre: number;
+};
+export type RepasFavori = { id: string; nom: string; repas: RepasKey | null; utilise_le: string | null; items: RepasFavoriItem[]; t: Totaux };
+
+export async function repasFavoris(): Promise<RepasFavori[]> {
+  const rf = await db.getAllAsync<Omit<RepasFavori, 'items' | 't'>>(
+    'SELECT id, nom, repas, utilise_le FROM repas_favoris WHERE supprime = 0 ORDER BY (utilise_le IS NULL), utilise_le DESC, nom COLLATE NOCASE',
+  );
+  const items = await db.getAllAsync<RepasFavoriItem>('SELECT * FROM repas_favoris_items WHERE supprime = 0 ORDER BY ordre');
+  return rf
+    .map((r) => {
+      const its = items.filter((i) => i.repas_favori_id === r.id);
+      return { ...r, items: its, t: somme(its) };
+    })
+    .filter((r) => r.items.length);
+}
+
+/** Enregistre le contenu d'un repas (ses entrées) comme repas favori. */
+export async function creerRepasFavori(nom: string, repas: RepasKey, es: Entree[]) {
+  const id = uid();
+  const t = now();
+  await db.withTransactionAsync(async () => {
+    await db.runAsync(
+      'INSERT INTO repas_favoris (id, nom, repas, utilise_le, cree_le, modifie_le, supprime) VALUES (?, ?, ?, ?, ?, ?, 0)',
+      id, nom.trim() || 'Mon repas', repas, t, t, t,
+    );
+    for (const [i, e] of es.entries()) {
+      const iid = uid();
+      await db.runAsync(
+        `INSERT INTO repas_favoris_items (id, repas_favori_id, aliment_id, libelle, quantite_g, kcal, proteines, glucides, lipides, fibres, ordre, modifie_le, supprime)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+        iid, id, e.aliment_id, e.libelle, e.quantite_g, e.kcal, e.proteines, e.glucides, e.lipides, e.fibres, i, t,
+      );
+      await enqueue('repas_favoris_items', iid);
+    }
+  });
+  await changed('repas_favoris', id);
+  return id;
+}
+
+/** Ajoute tous les aliments d'un repas favori (valeurs à jour de l'aliment s'il existe encore). */
+export async function ajouterRepasFavori(rf: RepasFavori, date: string, repas: RepasKey) {
+  for (const i of rf.items) {
+    const a = i.aliment_id ? await getAliment(i.aliment_id) : null;
+    if (a && !a.supprime && i.quantite_g) await ajouterEntree(date, repas, a, i.quantite_g);
+    else await ajouterSaisieRapide(date, repas, i.libelle, i);
+  }
+  await db.runAsync('UPDATE repas_favoris SET utilise_le = ? WHERE id = ?', now(), rf.id);
+  emitDataChange();
+}
+
+export async function supprimerRepasFavori(id: string) {
+  const t = now();
+  await db.runAsync('UPDATE repas_favoris SET supprime = 1, modifie_le = ? WHERE id = ?', t, id);
+  const items = await db.getAllAsync<{ id: string }>('SELECT id FROM repas_favoris_items WHERE repas_favori_id = ?', id);
+  await db.runAsync('UPDATE repas_favoris_items SET supprime = 1, modifie_le = ? WHERE repas_favori_id = ?', t, id);
+  for (const i of items) await enqueue('repas_favoris_items', i.id);
+  await changed('repas_favoris', id);
+}
+
 // ---------- Synchro / export ----------
 export async function lignePourSync(tbl: SyncTable, id: string) {
   const cols = SYNC_COLUMNS[tbl].join(', ');

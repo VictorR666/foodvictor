@@ -86,6 +86,15 @@ export default function Sauvegarde() {
             {statut.sous ? <Text style={{ fontFamily: F.body, fontSize: 12.5, color: statut.fg }}>{statut.sous}</Text> : null}
           </View>
         </View>
+        {etat?.scriptAncien ? (
+          <View style={{ padding: 12, borderRadius: 18, backgroundColor: C.warnBg, gap: 4 }}>
+            <T style={{ fontFamily: F.bodyBold, color: C.warnText }}>Mets à jour le script Google</T>
+            <Text style={{ fontFamily: F.body, fontSize: 12.5, color: C.warnText }}>
+              Tes repas favoris attendent d’être sauvegardés. Recopie la nouvelle version de Code.gs dans Apps Script, puis
+              Déployer › Gérer les déploiements › Modifier › Nouvelle version. Ils partiront tout seuls ensuite.
+            </Text>
+          </View>
+        ) : null}
         {etat?.etat !== 'non_configure' ? (
           <Bouton titre="Synchroniser maintenant" onPress={() => synchroniser()} disabled={etat?.etat === 'en_cours'} />
         ) : null}

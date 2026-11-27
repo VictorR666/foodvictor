@@ -65,3 +65,8 @@ export function repasParDefaut(): RepasKey {
   if (h < 18) return 'collation';
   return 'diner';
 }
+
+/** « au petit-déjeuner », « à la collation » */
+export const auRepas = (k: RepasKey) => (k === 'collation' ? 'à la collation' : `au ${repasInfo(k).nom.toLowerCase()}`);
+/** « du dîner », « de la collation » */
+export const duRepas = (k: RepasKey) => (k === 'collation' ? 'de la collation' : `du ${repasInfo(k).nom.toLowerCase()}`);
